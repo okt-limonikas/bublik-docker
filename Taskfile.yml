@@ -3,6 +3,20 @@ version: "3"
 dotenv:
   - .env
 
+vars:
+  API_URL:
+    sh: |
+      fqdn="{{.BUBLIK_FQDN}}"
+      prefix="{{.URL_PREFIX}}"
+      fqdn="${fqdn%/}"
+      prefix="${prefix#/}"
+      prefix="${prefix%/}"
+      if [ -n "$prefix" ]; then
+        echo "$fqdn/$prefix"
+      else
+        echo "$fqdn"
+      fi
+
 tasks:
   default:
     desc: Show available tasks
@@ -61,7 +75,7 @@ tasks:
     aliases: [dev:watch]
     cmds:
       - docker compose -f docker-compose.dev.yml up --build --watch
-      - echo "🚀 Docker development environment started at http://localhost"
+      - echo "🚀 Docker development environment started at {{.BUBLIK_FQDN}}"
 
   docker:dev:up:
     desc: Start Docker development environment
@@ -69,7 +83,7 @@ tasks:
     aliases: [dev:up]
     cmds:
       - docker compose -f docker-compose.dev.yml up --build -d
-      - echo "🚀 Docker development environment started at http://localhost"
+      - echo "🚀 Docker development environment started at {{.BUBLIK_FQDN}}"
 
   docker:up:
     desc: Start Docker production environment
@@ -77,7 +91,7 @@ tasks:
     aliases: [up]
     cmds:
       - docker compose -f docker-compose.yml up --build -d
-      - echo "🚀 Docker production environment started at http://localhost"
+      - echo "🚀 Docker production environment started at {{.BUBLIK_FQDN}}"
 
   docker:down:
     desc: Stop Docker development environment
@@ -274,7 +288,7 @@ tasks:
           [ -z "$url" ] && continue
 
           echo "🔄 Starting import: $url"
-          curl -s "http://localhost/{{.URL_PREFIX}}api/v2/importruns/source/?url=$url" \
+          curl -s "{{.API_URL}}/api/v2/importruns/source/?url=$url" \
             -H 'Content-Type: application/json' \
             -b cookies.txt >/dev/null
 
@@ -310,7 +324,7 @@ tasks:
           local type=$2
           local response
 
-          response=$(curl -s "http://localhost/{{.URL_PREFIX}}api/v2/config/" -b cookies.txt)
+          response=$(curl -s "{{.API_URL}}/api/v2/config/" -b cookies.txt)
 
           if command -v jq >/dev/null 2>&1; then
             echo "$response" | jq -e ".[] | select(.name == \"$name\" and .type == \"$type\")" >/dev/null
@@ -334,7 +348,7 @@ tasks:
           echo "📝 Creating $type config '$name' from $file..."
           content=$(cat "$file")
 
-          response=$(curl -s "http://localhost/{{.URL_PREFIX}}api/v2/config/" \
+          response=$(curl -s "{{.API_URL}}/api/v2/config/" \
             -H 'Content-Type: application/json' \
             -b cookies.txt \
             --data-raw "{
@@ -372,7 +386,7 @@ tasks:
     cmds:
       - |
         echo "🔑 Logging in with {{.EMAIL}}..."
-        response=$(curl -s -c cookies.txt "http://localhost/{{.URL_PREFIX}}auth/login/" \
+        response=$(curl -s -c cookies.txt "{{.API_URL}}/auth/login/" \
           -H 'Content-Type: application/json' \
           --data-raw "{\"email\":\"{{.EMAIL}}\",\"password\":\"{{.PASSWORD}}\"}")
 
