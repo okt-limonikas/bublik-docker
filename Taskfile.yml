@@ -157,8 +157,16 @@ tasks:
   ###########################################
   #         Deps                          #
   ###########################################
+
+  check-deps:
+    desc: Check if system dependencies are installed
+    cmds:
+      - task: system:check-deps
+      - task: docker:check-deps
+
   system:check-deps:
     desc: Check if system dependencies are installed
+    internal: true
     silent: true
     cmds:
       - |
