@@ -54,6 +54,7 @@ tasks:
     desc: Setup Docker environment (copy env and settings files)
     aliases: [setup]
     deps: [system:check-deps, docker:check-deps]
+    silent: true
     status:
       - test -f .env # only create .env on first run, after user should update it manually
       - test -f bublik/bublik/settings.py && test "$(stat -c %Y docker-settings.py.template)" -le "$(stat -c %Y bublik/bublik/settings.py)"
@@ -110,6 +111,7 @@ tasks:
     summary: |
       Import logs from a specified .tar file
       Usage: task import-logs -- ./path/to/file.tar
+    silent: true
     vars:
       FILE: "{{.CLI_ARGS}}"
     cmds:
@@ -157,6 +159,7 @@ tasks:
   ###########################################
   system:check-deps:
     desc: Check if system dependencies are installed
+    silent: true
     cmds:
       - |
         echo "🔍 Checking system dependencies..."
@@ -177,6 +180,7 @@ tasks:
   docker:check-deps:
     desc: Check if Docker and Docker Compose are installed
     internal: true
+    silent: true
     cmds:
       - |
         echo "🔍 Checking Docker installation..."
@@ -258,6 +262,7 @@ tasks:
   print-admin-credentials:
     desc: Print admin credentials
     internal: true
+    silent: true
     cmds:
       - |
         echo "🔑 Admin credentials:"
@@ -267,6 +272,7 @@ tasks:
   import-bootstrap-sessions:
     desc: Import Test Sessions
     deps: [auth:get-token]
+    silent: true
     cmds:
       - |
         if [ ! -f "bootstrap/import.txt" ]; then
@@ -302,6 +308,7 @@ tasks:
   bootstrap-configs:
     desc: Bootstrap Configs
     internal: true
+    silent: true
     deps: [auth:get-token]
     cmds:
       - |
@@ -380,6 +387,7 @@ tasks:
   auth:get-token:
     desc: Get access token by logging in
     internal: true
+    silent: true
     vars:
       EMAIL: '{{.DJANGO_SUPERUSER_EMAIL | default "admin@bublik.com"}}'
       PASSWORD: '{{.DJANGO_SUPERUSER_PASSWORD | default "admin"}}'
