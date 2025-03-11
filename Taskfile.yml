@@ -333,9 +333,16 @@ tasks:
       - defer: { task: auth:get-token:clean }
 
   bootstrap:init-configs:
-    desc: Bootstrap Configs
+    desc: Bootstrap Configs from specified directory
+    summary: |
+      Bootstrap configuration files from a specified directory
+      Usage: task bootstrap:init-configs -- /path/to/config/dir
+      Default directory: bootstrap/
     silent: true
     deps: [auth:get-token]
+    vars:
+      CONFIG_DIR:
+        sh: echo "${CLI_ARGS:-bootstrap}"
     cmds:
       - |
         TOKEN=$(cat .access_token)
@@ -343,6 +350,14 @@ tasks:
           echo "❌ Failed to get access token"
           exit 1
         fi
+
+        # Validate config directory
+        if [ ! -d "{{.CONFIG_DIR}}" ]; then
+          echo "❌ Config directory not found: {{.CONFIG_DIR}}"
+          exit 1
+        fi
+
+        echo "📝 Using config directory: {{.CONFIG_DIR}}"
         echo "📝 Using login {{.DJANGO_SUPERUSER_EMAIL}} and password {{.DJANGO_SUPERUSER_PASSWORD}}"
 
         echo "📝 Do you want to bootstrap configs? [y/N]"
@@ -373,8 +388,13 @@ tasks:
           local name=$2
           local file=$3
 
+          if [ ! -f "$file" ]; then
+            echo "⚠️ Config file not found: $file, skipping..."
+            return 0
+          fi
+
           if config_exists "$name" "$type"; then
-            echo "⏭️  Config '$name' ($type) already exists, skipping..."
+            echo "⏭️ Config '$name' ($type) already exists, skipping..."
             return 0
           fi
 
@@ -401,11 +421,24 @@ tasks:
           fi
         }
 
-        create_config "report" "report" "bootstrap/report.json"
-        create_config "global" "meta" "bootstrap/meta.json"
-        create_config "global" "tags" "bootstrap/tags.json"
-        create_config "global" "references" "bootstrap/references.json"
-        create_config "global" "per_conf" "bootstrap/per_conf.json"
+        # Define config files to process
+        declare -A configs=(
+          ["report"]="report.json"
+          ["meta"]="meta.json"
+          ["tags"]="tags.json"
+          ["references"]="references.json"
+          ["per_conf"]="per_conf.json"
+        )
+
+        # Process each config
+        for name in "${!configs[@]}"; do
+          file="{{.CONFIG_DIR}}/${configs[$name]}"
+          type="global"
+          if [ "$name" = "report" ]; then
+            type="report"
+          fi
+          create_config "$type" "$name" "$file"
+        done
 
         echo "✅ All configs processed successfully!"
       - defer: { task: auth:get-token:clean }
