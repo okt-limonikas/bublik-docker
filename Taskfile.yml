@@ -266,6 +266,7 @@ tasks:
           echo "🔍 Error response: $BODY"
           exit 1
         fi
+  ###########################################
   #         Bootstrap                       #
   ###########################################
   bootstrap-dev:
@@ -273,22 +274,21 @@ tasks:
     cmds:
       - task: docker:dev:up
       - cmd: echo "Waiting for 10 seconds for services to start..." && sleep 10
-      - task: bootstrap-configs
-      - task: import-bootstrap-sessions
-      - task: print-admin-credentials
+      - task: bootstrap:init-configs
+      - task: bootstrap:import-sessions
+      - task: bootstrap:print-credentials
 
   bootstrap:
     desc: Bootstrap the application and deploy to production
     cmds:
       - task: docker:up
       - cmd: echo "Waiting for 10 seconds for services to start..." && sleep 10
-      - task: bootstrap-configs
-      - task: import-bootstrap-sessions
-      - task: print-admin-credentials
+      - task: bootstrap:init-configs
+      - task: bootstrap:import-sessions
+      - task: bootstrap:print-credentials
 
-  print-admin-credentials:
+  bootstrap:print-credentials:
     desc: Print admin credentials
-    internal: true
     silent: true
     cmds:
       - |
@@ -296,7 +296,7 @@ tasks:
         echo "  Email: {{.DJANGO_SUPERUSER_EMAIL}}"
         echo "  Password: {{.DJANGO_SUPERUSER_PASSWORD}}"
 
-  import-bootstrap-sessions:
+  bootstrap:import-sessions:
     desc: Import Test Sessions
     deps: [auth:get-token]
     silent: true
@@ -332,9 +332,8 @@ tasks:
         echo "✅ All imports have been queued!"
       - defer: { task: auth:get-token:clean }
 
-  bootstrap-configs:
+  bootstrap:init-configs:
     desc: Bootstrap Configs
-    internal: true
     silent: true
     deps: [auth:get-token]
     cmds:
