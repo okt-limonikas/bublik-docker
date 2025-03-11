@@ -55,29 +55,10 @@ tasks:
   docker:setup:
     desc: Setup Docker environment (copy env and settings files)
     aliases: [setup]
-    deps: [system:check-deps, docker:check-deps]
+    deps: [check-deps]
     silent: true
-    status:
-      - test -f bublik/bublik/settings.py && test "$(stat -c %Y docker-settings.py.template)" -le "$(stat -c %Y bublik/bublik/settings.py)"
     cmds:
-      - |
-        if [ ! -f ".env" ]; then
-          echo "📝 Creating .env from template..."
-          cp .env.local .env
-          echo "✅ Created .env file"
-        else
-          echo "⏭️ Using existing .env file"
-          echo "ℹ️  To reset to defaults, remove .env and run setup again"
-        fi
-
-        # Handle settings.py
-        if [ -f "bublik/settings.py" ]; then
-          echo "⚠️  Removing existing settings.py..."
-          rm bublik/settings.py
-        fi
-        echo "📝 Copying docker settings template..."
-        cp docker-settings.py.template ./bublik/bublik/settings.py
-        echo "✅ Docker environment setup complete!"
+      - ./scripts/docker_setup.sh
 
   docker:dev:watch:
     desc: Start Docker development environment in watch mode
@@ -124,31 +105,7 @@ tasks:
     vars:
       FILE: "{{.CLI_ARGS}}"
     cmds:
-      - |
-        if [ -z "{{.FILE}}" ]; then
-          echo "❌ No file specified"
-          echo "Usage: task import-logs -- ./path/to/file.tar"
-          exit 1
-        fi
-
-        if [ ! -f "{{.FILE}}" ]; then
-          echo "❌ File not found: {{.FILE}}"
-          exit 1
-        fi
-
-        FILENAME=$(basename "{{.FILE}}")
-        echo "📝 Copying $FILENAME to container..."
-        docker cp "{{.FILE}}" te-log-server:/home/te-logs/incoming/
-
-        echo "🔄 Processing logs..."
-
-        # Kinda hacky, but it works
-        # Fix permissions before processing
-        docker exec te-log-server chown -R www-data:www-data /home/te-logs/incoming/
-        docker exec -it te-log-server /bin/bash -c "cd /home/te-logs/bin && ./publish-incoming-logs"
-        # Fix permissions after processing
-        docker exec te-log-server chown -R www-data:www-data /home/te-logs/logs/
-        docker exec te-log-server chmod -R 755 /home/te-logs/logs/
+      - ./scripts/import_logs.sh {{.FILE}}
 
   docker:nuke:
     prompt: |
@@ -178,82 +135,14 @@ tasks:
     internal: true
     silent: true
     cmds:
-      - |
-        echo "🔍 Checking system dependencies..."
-        if ! command -v jq &> /dev/null; then
-          echo "⚠️  jq is not installed!"
-          echo "To install jq:"
-          echo "  sudo apt-get install jq"
-          exit 1
-        fi
-        if ! command -v curl &> /dev/null; then
-          echo "⚠️  curl is not installed!"
-          echo "To install curl:"
-          echo "  sudo apt-get install curl"
-          exit 1
-        fi
-        echo "✅ All system dependencies are installed"
+      - ./scripts/check_deps.sh system
 
   docker:check-deps:
     desc: Check if Docker and Docker Compose are installed
     internal: true
     silent: true
     cmds:
-      - |
-        echo "🔍 Checking Docker installation..."
-        if ! command -v docker &> /dev/null; then
-          echo "⚠️  Docker is not installed!"
-          echo ""
-          echo "Quick Install (using convenience script):"
-          echo "  curl -fsSL https://get.docker.com -o get-docker.sh"
-          echo "  sudo sh get-docker.sh"
-          echo ""
-          echo "📚 For more installation options, visit:"
-          echo "  https://docs.docker.com/engine/install/ubuntu/#install-using-the-convenience-script"
-          echo ""
-          echo "🔧 After installation, don't forget the post-installation steps:"
-          echo "  1. Add your user to docker group:"
-          echo "     sudo groupadd docker"
-          echo "     sudo usermod -aG docker \$USER"
-          echo "     newgrp docker"
-          echo ""
-          echo "  2. Configure Docker to start on boot:"
-          echo "     sudo systemctl enable docker.service"
-          echo "     sudo systemctl enable containerd.service"
-          echo ""
-          echo "📚 For detailed post-installation steps, visit:"
-          echo "  https://docs.docker.com/engine/install/linux-postinstall/"
-          exit 1
-        fi
-
-        if ! docker compose version &> /dev/null; then
-          echo "⚠️  Docker Compose plugin is not installed!"
-          echo "To install Docker Compose plugin:"
-          echo "  sudo apt-get install docker-compose-plugin"
-          echo ""
-          echo "For more installation options, visit:"
-          echo "  https://docs.docker.com/engine/install/ubuntu/#install-using-the-convenience-script"
-          exit 1
-        fi
-
-        # Check if user is in docker group
-        if ! groups | grep -q "docker"; then
-          echo "⚠️  Your user is not in the docker group!"
-          echo "This means you'll need to use sudo for docker commands."
-          echo ""
-          echo "To run Docker as a non-root user:"
-          echo "  sudo groupadd docker"
-          echo "  sudo usermod -aG docker \$USER"
-          echo "  newgrp docker"
-          echo ""
-          echo "📚 For more information, visit:"
-          echo "  https://docs.docker.com/engine/install/linux-postinstall/"
-        else
-          echo "✅ User is in docker group"
-        fi
-
-        echo "✅ Docker $(docker --version) is installed"
-        echo "✅ Docker Compose $(docker compose version --short) is installed"
+      - ./scripts/check_deps.sh docker
 
   ###########################################
   #         Shortcuts                       #
@@ -262,19 +151,8 @@ tasks:
     desc: Trigger meta-categorization process
     silent: true
     cmds:
-      - |
-        echo "🚀 Starting meta-categorization..."
-        RESPONSE=$(curl -s -X POST -w "\n%{http_code}" "{{.API_URL}}/meta_categorization/")
-        BODY=$(echo "$RESPONSE" | sed '$d')  # Extract response body
-        STATUS_CODE=$(echo "$RESPONSE" | tail -n1)  # Extract HTTP status code
+      - ./scripts/meta_categorization.sh "{{.API_URL}}"
 
-        if [[ "$STATUS_CODE" =~ ^2 ]]; then
-          echo "✅ Meta-categorization triggered successfully!"
-        else
-          echo "❌ Failed to trigger meta-categorization (HTTP $STATUS_CODE)"
-          echo "🔍 Error response: $BODY"
-          exit 1
-        fi
   ###########################################
   #         Bootstrap                       #
   ###########################################
@@ -317,36 +195,7 @@ tasks:
       IMPORT_FILE:
         sh: echo "${CLI_ARGS:-bootstrap/import.txt}"
     cmds:
-      - |
-        if [ ! -f "{{.IMPORT_FILE}}" ]; then
-          echo "❌ Import file not found: {{.IMPORT_FILE}}"
-          exit 1
-        fi
-
-        echo "📝 Using import file: {{.IMPORT_FILE}}"
-        echo "📝 Import test sessions from {{.IMPORT_FILE}}? [y/N]"
-        read -p "Continue? [y/N] " answer
-        if [[ ! $answer =~ ^[Yy]$ ]]; then
-          echo "⏭️ Import skipped"
-          exit 0
-        fi
-
-        echo "📝 Starting test sessions import..."
-        # Make sure file ends with newline and read each URL
-        sed -e '$a\' "{{.IMPORT_FILE}}" | while read -r url; do
-          # Skip empty lines and comments
-          [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
-
-          echo "🔄 Starting import: $url"
-          curl -s "{{.API_URL}}/api/v2/importruns/source/?url=$url" \
-            -H 'Content-Type: application/json' \
-            -b cookies.txt >/dev/null
-
-          sleep 1
-          echo "✅ Import started"
-        done
-
-        echo "✅ All imports have been queued!"
+      - ./scripts/import_sessions.sh "{{.API_URL}}" "{{.IMPORT_FILE}}"
       - defer: { task: auth:get-token:clean }
 
   bootstrap:init-configs:
@@ -361,103 +210,7 @@ tasks:
       CONFIG_DIR:
         sh: echo "${CLI_ARGS:-bootstrap}"
     cmds:
-      - |
-        TOKEN=$(cat .access_token)
-        if [ -z "$TOKEN" ]; then
-          echo "❌ Failed to get access token"
-          exit 1
-        fi
-
-        # Validate config directory
-        if [ ! -d "{{.CONFIG_DIR}}" ]; then
-          echo "❌ Config directory not found: {{.CONFIG_DIR}}"
-          exit 1
-        fi
-
-        echo "📝 Using config directory: {{.CONFIG_DIR}}"
-        echo "📝 Using login {{.DJANGO_SUPERUSER_EMAIL}} and password {{.DJANGO_SUPERUSER_PASSWORD}}"
-
-        echo "📝 Do you want to bootstrap configs? [y/N]"
-        read -p "Continue? [y/N] " answer
-        if [[ ! $answer =~ ^[Yy]$ ]]; then
-          echo "⏭️ Configs bootstrap skipped"
-          exit 0
-        fi
-
-        config_exists() {
-          local name=$1
-          local type=$2
-          local response
-
-          response=$(curl -s "{{.API_URL}}/api/v2/config/" -b cookies.txt)
-
-          if command -v jq >/dev/null 2>&1; then
-            echo "$response" | jq -e ".[] | select(.name == \"$name\" and .type == \"$type\")" >/dev/null
-          else
-            # Fallback if jq is not available
-            echo "$response" | grep -q "\"name\": \"$name\", \"type\": \"$type\""
-          fi
-          return $?
-        }
-
-        create_config() {
-          local type=$1
-          local name=$2
-          local file=$3
-
-          if [ ! -f "$file" ]; then
-            echo "⚠️ Config file not found: $file, skipping..."
-            return 0
-          fi
-
-          if config_exists "$name" "$type"; then
-            echo "⏭️ Config '$name' ($type) already exists, skipping..."
-            return 0
-          fi
-
-          echo "📝 Creating $type config '$name' from $file..."
-          content=$(cat "$file")
-
-          response=$(curl -s "{{.API_URL}}/api/v2/config/" \
-            -H 'Content-Type: application/json' \
-            -b cookies.txt \
-            --data-raw "{
-              \"type\": \"$type\",
-              \"name\": \"$name\",
-              \"description\": \"$name Configuration\",
-              \"is_active\": true,
-              \"content\": $content
-            }")
-
-          if echo "$response" | grep -q "id"; then
-            echo "✅ Successfully created $name config"
-          else
-            echo "❌ Failed to create $name config"
-            echo "Response: $response"
-            exit 1
-          fi
-        }
-
-        # Define config files to process
-        declare -A configs=(
-          ["report"]="report.json"
-          ["meta"]="meta.json"
-          ["tags"]="tags.json"
-          ["references"]="references.json"
-          ["per_conf"]="per_conf.json"
-        )
-
-        # Process each config
-        for name in "${!configs[@]}"; do
-          file="{{.CONFIG_DIR}}/${configs[$name]}"
-          type="global"
-          if [ "$name" = "report" ]; then
-            type="report"
-          fi
-          create_config "$type" "$name" "$file"
-        done
-
-        echo "✅ All configs processed successfully!"
+      - ./scripts/bootstrap_configs.sh "{{.API_URL}}" "{{.EMAIL}}" "{{.PASSWORD}}" "{{.CONFIG_DIR}}"
       - defer: { task: auth:get-token:clean }
 
   auth:get-token:
@@ -492,107 +245,6 @@ tasks:
       - rm -f cookies.txt .access_token
 
   ###########################################
-  #         Database Operations             #
-  ###########################################
-  db:backup:
-    desc: Create PostgreSQL database backup
-    silent: true
-    summary: |
-      Create a backup of the PostgreSQL database
-      Usage: task db:backup -- /path/to/backup/dir
-      Default directory: ./backups/
-    cmds:
-      - |
-        # Ensure backup directory exists
-        mkdir -p "{{.BACKUP_DIR}}"
-
-        # Generate backup filename with timestamp
-        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        BACKUP_FILE="{{.BACKUP_DIR}}/bublik_backup_${TIMESTAMP}.sql"
-
-        echo "📦 Creating database backup..."
-        echo "📝 Backup will be saved to: $BACKUP_FILE"
-
-        # Create backup using pg_dump inside the container
-        if docker exec postgres pg_dump \
-          -U {{.DB_USER}} \
-          -d {{.DB_NAME}} \
-          --clean \
-          --if-exists \
-          --no-owner \
-          --no-privileges \
-          > "$BACKUP_FILE"; then
-          echo "✅ Database backup created successfully at: $BACKUP_FILE"
-          echo "📊 Backup size: $(du -h "$BACKUP_FILE" | cut -f1)"
-        else
-          echo "❌ Failed to create database backup"
-          rm -f "$BACKUP_FILE"
-          exit 1
-        fi
-
-  db:restore:
-    desc: Restore PostgreSQL database from backup
-    silent: true
-    summary: |
-      Restore database from a backup file
-      Usage: task db:restore -- /path/to/backup/file.sql
-    vars:
-      BACKUP_FILE:
-        sh: echo "$CLI_ARGS"
-    cmds:
-      - |
-        if [ -z "{{.BACKUP_FILE}}" ]; then
-          echo "❌ No backup file specified"
-          echo "Usage: task db:restore -- /path/to/backup/file.sql"
-          exit 1
-        fi
-
-        if [ ! -f "{{.BACKUP_FILE}}" ]; then
-          echo "❌ Backup file not found: {{.BACKUP_FILE}}"
-          exit 1
-        fi
-
-        echo "⚠️ This will overwrite the current database!"
-        echo "📝 Restore from: {{.BACKUP_FILE}}"
-        read -p "Continue? [y/N] " answer
-        if [[ ! $answer =~ ^[Yy]$ ]]; then
-          echo "⏭️ Restore cancelled"
-          exit 0
-        fi
-
-        echo "🔄 Restoring database..."
-        if cat "{{.BACKUP_FILE}}" | docker exec -i postgres psql \
-          -U {{.DB_USER}} \
-          -d {{.DB_NAME}}; then
-          echo "✅ Database restored successfully"
-        else
-          echo "❌ Failed to restore database"
-          exit 1
-        fi
-
-  db:list-backups:
-    desc: List available database backups
-    silent: true
-    summary: |
-      List all database backups in the backup directory
-      Usage: task db:list-backups -- /path/to/backup/dir
-      Default directory: ./backups/
-    cmds:
-      - |
-        if [ ! -d "{{.BACKUP_DIR}}" ]; then
-          echo "❌ Backup directory not found: {{.BACKUP_DIR}}"
-          exit 1
-        fi
-
-        echo "📝 Available backups in {{.BACKUP_DIR}}:"
-        echo "----------------------------------------"
-        if ls -lh "{{.BACKUP_DIR}}"/*.sql 2>/dev/null; then
-          echo "----------------------------------------"
-        else
-          echo "No backups found"
-        fi
-
-  ###########################################
   #         Backup Operations              #
   ###########################################
   backup:create:
@@ -603,63 +255,7 @@ tasks:
       Usage: task backup:create -- /path/to/backup/dir
       Default directory: ./backups/
     cmds:
-      - |
-        # Ensure backup directory exists
-        mkdir -p "{{.BACKUP_DIR}}"
-
-        # Generate backup filename with timestamp
-        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        BACKUP_DIR_NAME="bublik_backup_${TIMESTAMP}"
-        FINAL_BACKUP_FILE="{{.BACKUP_DIR}}/${BACKUP_DIR_NAME}.tar.gz"
-
-        # Create temporary directory for the backup
-        TMP_DIR=$(mktemp -d)
-        BACKUP_TMP_DIR="$TMP_DIR/$BACKUP_DIR_NAME"
-        mkdir -p "$BACKUP_TMP_DIR"/{db,logs}
-
-        echo "📦 Creating complete backup..."
-
-        # Backup database
-        echo "📝 Creating database backup..."
-        if docker exec postgres pg_dump \
-          -U {{.DB_USER}} \
-          -d {{.DB_NAME}} \
-          --clean \
-          --if-exists \
-          --no-owner \
-          --no-privileges \
-          > "$BACKUP_TMP_DIR/db/database.sql"; then
-          echo "✅ Database backup created"
-        else
-          echo "❌ Failed to create database backup"
-          rm -rf "$TMP_DIR"
-          exit 1
-        fi
-
-        # Backup TE logs
-        echo "📝 Creating TE logs backup..."
-        if docker cp te-log-server:/home/te-logs/logs/. "$BACKUP_TMP_DIR/logs/"; then
-          echo "✅ TE logs backup created"
-        else
-          echo "❌ Failed to copy logs from container"
-          rm -rf "$TMP_DIR"
-          exit 1
-        fi
-
-        # Create final archive
-        echo "📝 Creating backup archive..."
-        if tar -czf "$FINAL_BACKUP_FILE" -C "$TMP_DIR" "$BACKUP_DIR_NAME"; then
-          echo "✅ Backup archive created successfully at: $FINAL_BACKUP_FILE"
-          echo "📊 Backup size: $(du -h "$FINAL_BACKUP_FILE" | cut -f1)"
-        else
-          echo "❌ Failed to create backup archive"
-          rm -f "$FINAL_BACKUP_FILE"
-          rm -rf "$TMP_DIR"
-          exit 1
-        fi
-
-        # Cleanup
-        rm -rf "$TMP_DIR"
+      - ./scripts/backup_operations.sh create {{.BACKUP_DIR}}
 
   backup:restore:
     desc: Restore both database and TE logs from a backup archive
@@ -667,89 +263,8 @@ tasks:
     summary: |
       Restore complete backup from an archive
       Usage: task backup:restore -- /path/to/backup.tar.gz
-    vars:
-      BACKUP_FILE:
-        sh: echo "$CLI_ARGS"
     cmds:
-      - |
-        if [ -z "{{.BACKUP_FILE}}" ]; then
-          echo "❌ No backup file specified"
-          echo "Usage: task backup:restore -- /path/to/backup.tar.gz"
-          exit 1
-        fi
-
-        if [ ! -f "{{.BACKUP_FILE}}" ]; then
-          echo "❌ Backup file not found: {{.BACKUP_FILE}}"
-          exit 1
-        fi
-
-        echo "⚠️ This will overwrite both the current database and TE logs!"
-        echo "📝 Restore from: {{.BACKUP_FILE}}"
-        read -p "Continue? [y/N] " answer
-        if [[ ! $answer =~ ^[Yy]$ ]]; then
-          echo "⏭️ Restore cancelled"
-          exit 0
-        fi
-
-        # Create temporary directory for extraction
-        TMP_DIR=$(mktemp -d)
-
-        echo "🔄 Extracting backup archive..."
-        if tar -xzf "{{.BACKUP_FILE}}" -C "$TMP_DIR"; then
-          BACKUP_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name "bublik_backup_*")
-
-          if [ -z "$BACKUP_DIR" ]; then
-            echo "❌ Invalid backup archive structure"
-            rm -rf "$TMP_DIR"
-            exit 1
-          fi
-
-          # Restore database
-          echo "🔄 Restoring database..."
-          if [ -f "$BACKUP_DIR/db/database.sql" ]; then
-            if cat "$BACKUP_DIR/db/database.sql" | docker exec -i postgres psql \
-              -U {{.DB_USER}} \
-              -d {{.DB_NAME}}; then
-              echo "✅ Database restored successfully"
-            else
-              echo "❌ Failed to restore database"
-              rm -rf "$TMP_DIR"
-              exit 1
-            fi
-          else
-            echo "❌ Database backup not found in archive"
-            rm -rf "$TMP_DIR"
-            exit 1
-          fi
-
-          # Restore TE logs
-          echo "🔄 Restoring TE logs..."
-          if [ -d "$BACKUP_DIR/logs" ]; then
-            if docker cp "$BACKUP_DIR/logs/." te-log-server:/home/te-logs/logs/; then
-              echo "🔧 Fixing permissions..."
-              docker exec te-log-server chown -R www-data:www-data /home/te-logs/logs/
-              docker exec te-log-server chmod -R 755 /home/te-logs/logs/
-              echo "✅ TE logs restored successfully"
-            else
-              echo "❌ Failed to restore TE logs"
-              rm -rf "$TMP_DIR"
-              exit 1
-            fi
-          else
-            echo "❌ TE logs not found in archive"
-            rm -rf "$TMP_DIR"
-            exit 1
-          fi
-
-          echo "✅ Complete backup restored successfully!"
-        else
-          echo "❌ Failed to extract backup archive"
-          rm -rf "$TMP_DIR"
-          exit 1
-        fi
-
-        # Cleanup
-        rm -rf "$TMP_DIR"
+      - ./scripts/backup_operations.sh restore {{.CLI_ARGS}}
 
   backup:list:
     desc: List available backup archives
@@ -759,16 +274,4 @@ tasks:
       Usage: task backup:list -- /path/to/backup/dir
       Default directory: ./backups/
     cmds:
-      - |
-        if [ ! -d "{{.BACKUP_DIR}}" ]; then
-          echo "❌ Backup directory not found: {{.BACKUP_DIR}}"
-          exit 1
-        fi
-
-        echo "📝 Available backups in {{.BACKUP_DIR}}:"
-        echo "----------------------------------------"
-        if ls -lh "{{.BACKUP_DIR}}"/*.tar.gz 2>/dev/null; then
-          echo "----------------------------------------"
-        else
-          echo "No backups found"
-        fi
+      - ./scripts/backup_operations.sh list {{.BACKUP_DIR}}
