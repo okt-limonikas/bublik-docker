@@ -297,17 +297,25 @@ tasks:
         echo "  Password: {{.DJANGO_SUPERUSER_PASSWORD}}"
 
   bootstrap:import-sessions:
-    desc: Import Test Sessions
+    desc: Import Test Sessions from specified file
+    summary: |
+      Import test sessions from a specified file containing URLs
+      Usage: task bootstrap:import-sessions -- /path/to/import.txt
+      Default file: bootstrap/import.txt
     deps: [auth:get-token]
     silent: true
+    vars:
+      IMPORT_FILE:
+        sh: echo "${CLI_ARGS:-bootstrap/import.txt}"
     cmds:
       - |
-        if [ ! -f "bootstrap/import.txt" ]; then
-          echo "❌ Import file not found: bootstrap/import.txt"
-          exit 0
+        if [ ! -f "{{.IMPORT_FILE}}" ]; then
+          echo "❌ Import file not found: {{.IMPORT_FILE}}"
+          exit 1
         fi
 
-        echo "📝 Import test sessions from bootstrap/import.txt? [y/N]"
+        echo "📝 Using import file: {{.IMPORT_FILE}}"
+        echo "📝 Import test sessions from {{.IMPORT_FILE}}? [y/N]"
         read -p "Continue? [y/N] " answer
         if [[ ! $answer =~ ^[Yy]$ ]]; then
           echo "⏭️ Import skipped"
@@ -316,9 +324,9 @@ tasks:
 
         echo "📝 Starting test sessions import..."
         # Make sure file ends with newline and read each URL
-        sed -e '$a\' "bootstrap/import.txt" | while read -r url; do
-          # Skip empty lines
-          [ -z "$url" ] && continue
+        sed -e '$a\' "{{.IMPORT_FILE}}" | while read -r url; do
+          # Skip empty lines and comments
+          [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
 
           echo "🔄 Starting import: $url"
           curl -s "{{.API_URL}}/api/v2/importruns/source/?url=$url" \
