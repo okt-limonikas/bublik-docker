@@ -30,3 +30,6 @@ vendor/
 dist/
 build/
 out/
+
+# Backups
+backups/

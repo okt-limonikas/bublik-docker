@@ -16,6 +16,8 @@ vars:
       else
         echo "$fqdn"
       fi
+  BACKUP_DIR:
+    sh: echo "${CLI_ARGS:-backups}"
 
 tasks:
   default:
@@ -481,3 +483,285 @@ tasks:
     internal: true
     cmds:
       - rm -f cookies.txt .access_token
+
+  ###########################################
+  #         Database Operations             #
+  ###########################################
+  db:backup:
+    desc: Create PostgreSQL database backup
+    silent: true
+    summary: |
+      Create a backup of the PostgreSQL database
+      Usage: task db:backup -- /path/to/backup/dir
+      Default directory: ./backups/
+    cmds:
+      - |
+        # Ensure backup directory exists
+        mkdir -p "{{.BACKUP_DIR}}"
+
+        # Generate backup filename with timestamp
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        BACKUP_FILE="{{.BACKUP_DIR}}/bublik_backup_${TIMESTAMP}.sql"
+
+        echo "📦 Creating database backup..."
+        echo "📝 Backup will be saved to: $BACKUP_FILE"
+
+        # Create backup using pg_dump inside the container
+        if docker exec postgres pg_dump \
+          -U {{.DB_USER}} \
+          -d {{.DB_NAME}} \
+          --clean \
+          --if-exists \
+          --no-owner \
+          --no-privileges \
+          > "$BACKUP_FILE"; then
+          echo "✅ Database backup created successfully at: $BACKUP_FILE"
+          echo "📊 Backup size: $(du -h "$BACKUP_FILE" | cut -f1)"
+        else
+          echo "❌ Failed to create database backup"
+          rm -f "$BACKUP_FILE"
+          exit 1
+        fi
+
+  db:restore:
+    desc: Restore PostgreSQL database from backup
+    silent: true
+    summary: |
+      Restore database from a backup file
+      Usage: task db:restore -- /path/to/backup/file.sql
+    vars:
+      BACKUP_FILE:
+        sh: echo "$CLI_ARGS"
+    cmds:
+      - |
+        if [ -z "{{.BACKUP_FILE}}" ]; then
+          echo "❌ No backup file specified"
+          echo "Usage: task db:restore -- /path/to/backup/file.sql"
+          exit 1
+        fi
+
+        if [ ! -f "{{.BACKUP_FILE}}" ]; then
+          echo "❌ Backup file not found: {{.BACKUP_FILE}}"
+          exit 1
+        fi
+
+        echo "⚠️ This will overwrite the current database!"
+        echo "📝 Restore from: {{.BACKUP_FILE}}"
+        read -p "Continue? [y/N] " answer
+        if [[ ! $answer =~ ^[Yy]$ ]]; then
+          echo "⏭️ Restore cancelled"
+          exit 0
+        fi
+
+        echo "🔄 Restoring database..."
+        if cat "{{.BACKUP_FILE}}" | docker exec -i postgres psql \
+          -U {{.DB_USER}} \
+          -d {{.DB_NAME}}; then
+          echo "✅ Database restored successfully"
+        else
+          echo "❌ Failed to restore database"
+          exit 1
+        fi
+
+  db:list-backups:
+    desc: List available database backups
+    silent: true
+    summary: |
+      List all database backups in the backup directory
+      Usage: task db:list-backups -- /path/to/backup/dir
+      Default directory: ./backups/
+    cmds:
+      - |
+        if [ ! -d "{{.BACKUP_DIR}}" ]; then
+          echo "❌ Backup directory not found: {{.BACKUP_DIR}}"
+          exit 1
+        fi
+
+        echo "📝 Available backups in {{.BACKUP_DIR}}:"
+        echo "----------------------------------------"
+        if ls -lh "{{.BACKUP_DIR}}"/*.sql 2>/dev/null; then
+          echo "----------------------------------------"
+        else
+          echo "No backups found"
+        fi
+
+  ###########################################
+  #         Backup Operations              #
+  ###########################################
+  backup:create:
+    desc: Create a complete backup of database and TE logs
+    silent: true
+    summary: |
+      Create a complete backup archive containing both database and TE logs
+      Usage: task backup:create -- /path/to/backup/dir
+      Default directory: ./backups/
+    cmds:
+      - |
+        # Ensure backup directory exists
+        mkdir -p "{{.BACKUP_DIR}}"
+
+        # Generate backup filename with timestamp
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        BACKUP_DIR_NAME="bublik_backup_${TIMESTAMP}"
+        FINAL_BACKUP_FILE="{{.BACKUP_DIR}}/${BACKUP_DIR_NAME}.tar.gz"
+
+        # Create temporary directory for the backup
+        TMP_DIR=$(mktemp -d)
+        BACKUP_TMP_DIR="$TMP_DIR/$BACKUP_DIR_NAME"
+        mkdir -p "$BACKUP_TMP_DIR"/{db,logs}
+
+        echo "📦 Creating complete backup..."
+
+        # Backup database
+        echo "📝 Creating database backup..."
+        if docker exec postgres pg_dump \
+          -U {{.DB_USER}} \
+          -d {{.DB_NAME}} \
+          --clean \
+          --if-exists \
+          --no-owner \
+          --no-privileges \
+          > "$BACKUP_TMP_DIR/db/database.sql"; then
+          echo "✅ Database backup created"
+        else
+          echo "❌ Failed to create database backup"
+          rm -rf "$TMP_DIR"
+          exit 1
+        fi
+
+        # Backup TE logs
+        echo "📝 Creating TE logs backup..."
+        if docker cp te-log-server:/home/te-logs/logs/. "$BACKUP_TMP_DIR/logs/"; then
+          echo "✅ TE logs backup created"
+        else
+          echo "❌ Failed to copy logs from container"
+          rm -rf "$TMP_DIR"
+          exit 1
+        fi
+
+        # Create final archive
+        echo "📝 Creating backup archive..."
+        if tar -czf "$FINAL_BACKUP_FILE" -C "$TMP_DIR" "$BACKUP_DIR_NAME"; then
+          echo "✅ Backup archive created successfully at: $FINAL_BACKUP_FILE"
+          echo "📊 Backup size: $(du -h "$FINAL_BACKUP_FILE" | cut -f1)"
+        else
+          echo "❌ Failed to create backup archive"
+          rm -f "$FINAL_BACKUP_FILE"
+          rm -rf "$TMP_DIR"
+          exit 1
+        fi
+
+        # Cleanup
+        rm -rf "$TMP_DIR"
+
+  backup:restore:
+    desc: Restore both database and TE logs from a backup archive
+    silent: true
+    summary: |
+      Restore complete backup from an archive
+      Usage: task backup:restore -- /path/to/backup.tar.gz
+    vars:
+      BACKUP_FILE:
+        sh: echo "$CLI_ARGS"
+    cmds:
+      - |
+        if [ -z "{{.BACKUP_FILE}}" ]; then
+          echo "❌ No backup file specified"
+          echo "Usage: task backup:restore -- /path/to/backup.tar.gz"
+          exit 1
+        fi
+
+        if [ ! -f "{{.BACKUP_FILE}}" ]; then
+          echo "❌ Backup file not found: {{.BACKUP_FILE}}"
+          exit 1
+        fi
+
+        echo "⚠️ This will overwrite both the current database and TE logs!"
+        echo "📝 Restore from: {{.BACKUP_FILE}}"
+        read -p "Continue? [y/N] " answer
+        if [[ ! $answer =~ ^[Yy]$ ]]; then
+          echo "⏭️ Restore cancelled"
+          exit 0
+        fi
+
+        # Create temporary directory for extraction
+        TMP_DIR=$(mktemp -d)
+
+        echo "🔄 Extracting backup archive..."
+        if tar -xzf "{{.BACKUP_FILE}}" -C "$TMP_DIR"; then
+          BACKUP_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name "bublik_backup_*")
+
+          if [ -z "$BACKUP_DIR" ]; then
+            echo "❌ Invalid backup archive structure"
+            rm -rf "$TMP_DIR"
+            exit 1
+          fi
+
+          # Restore database
+          echo "🔄 Restoring database..."
+          if [ -f "$BACKUP_DIR/db/database.sql" ]; then
+            if cat "$BACKUP_DIR/db/database.sql" | docker exec -i postgres psql \
+              -U {{.DB_USER}} \
+              -d {{.DB_NAME}}; then
+              echo "✅ Database restored successfully"
+            else
+              echo "❌ Failed to restore database"
+              rm -rf "$TMP_DIR"
+              exit 1
+            fi
+          else
+            echo "❌ Database backup not found in archive"
+            rm -rf "$TMP_DIR"
+            exit 1
+          fi
+
+          # Restore TE logs
+          echo "🔄 Restoring TE logs..."
+          if [ -d "$BACKUP_DIR/logs" ]; then
+            if docker cp "$BACKUP_DIR/logs/." te-log-server:/home/te-logs/logs/; then
+              echo "🔧 Fixing permissions..."
+              docker exec te-log-server chown -R www-data:www-data /home/te-logs/logs/
+              docker exec te-log-server chmod -R 755 /home/te-logs/logs/
+              echo "✅ TE logs restored successfully"
+            else
+              echo "❌ Failed to restore TE logs"
+              rm -rf "$TMP_DIR"
+              exit 1
+            fi
+          else
+            echo "❌ TE logs not found in archive"
+            rm -rf "$TMP_DIR"
+            exit 1
+          fi
+
+          echo "✅ Complete backup restored successfully!"
+        else
+          echo "❌ Failed to extract backup archive"
+          rm -rf "$TMP_DIR"
+          exit 1
+        fi
+
+        # Cleanup
+        rm -rf "$TMP_DIR"
+
+  backup:list:
+    desc: List available backup archives
+    silent: true
+    summary: |
+      List all backup archives in the backup directory
+      Usage: task backup:list -- /path/to/backup/dir
+      Default directory: ./backups/
+    cmds:
+      - |
+        if [ ! -d "{{.BACKUP_DIR}}" ]; then
+          echo "❌ Backup directory not found: {{.BACKUP_DIR}}"
+          exit 1
+        fi
+
+        echo "📝 Available backups in {{.BACKUP_DIR}}:"
+        echo "----------------------------------------"
+        if ls -lh "{{.BACKUP_DIR}}"/*.tar.gz 2>/dev/null; then
+          echo "----------------------------------------"
+        else
+          echo "No backups found"
+        fi
