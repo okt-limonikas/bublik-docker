@@ -58,12 +58,19 @@ tasks:
     deps: [system:check-deps, docker:check-deps]
     silent: true
     status:
-      - test -f .env # only create .env on first run, after user should update it manually
       - test -f bublik/bublik/settings.py && test "$(stat -c %Y docker-settings.py.template)" -le "$(stat -c %Y bublik/bublik/settings.py)"
     cmds:
       - |
-        echo "📝 Copying .env.local to .env..."
-        cp .env.local .env
+        if [ ! -f ".env" ]; then
+          echo "📝 Creating .env from template..."
+          cp .env.local .env
+          echo "✅ Created .env file"
+        else
+          echo "⏭️ Using existing .env file"
+          echo "ℹ️  To reset to defaults, remove .env and run setup again"
+        fi
+
+        # Handle settings.py
         if [ -f "bublik/settings.py" ]; then
           echo "⚠️  Removing existing settings.py..."
           rm bublik/settings.py
