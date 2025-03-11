@@ -53,7 +53,7 @@ tasks:
   docker:setup:
     desc: Setup Docker environment (copy env and settings files)
     aliases: [setup]
-    deps: [init, system:check-deps, docker:check-deps]
+    deps: [system:check-deps, docker:check-deps]
     status:
       - test -f .env # only create .env on first run, after user should update it manually
       - test -f bublik/bublik/settings.py && test "$(stat -c %Y docker-settings.py.template)" -le "$(stat -c %Y bublik/bublik/settings.py)"
