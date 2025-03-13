@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Check required environment variables
-if [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then
+if [ -z "$DB_USER" ] || [ -z "$DB_NAME" ] || [ -z "$BUBLIK_DOCKER_DATA_DIR" ]; then
   echo "❌ Required environment variables not set"
-  echo "Required: DB_USER, DB_NAME"
+  echo "Required: DB_USER, DB_NAME, BUBLIK_DOCKER_DATA_DIR"
   exit 1
 fi
 
@@ -126,9 +126,24 @@ restore_backup() {
     if [ -d "$BACKUP_DIR/logs" ]; then
       if docker cp "$BACKUP_DIR/logs/." te-log-server:/home/te-logs/logs/; then
         echo "🔧 Fixing permissions..."
-        docker exec te-log-server chown -R www-data:www-data /home/te-logs/logs/
-        docker exec te-log-server chmod -R 755 /home/te-logs/logs/
-        echo "✅ TE logs restored successfully"
+        # Get host user's UID/GID from environment
+        HOST_UID=$(id -u)
+        HOST_GID=$(id -g)
+        
+        # Set ownership and permissions inside container
+        docker exec te-log-server chown -R ${HOST_UID}:${HOST_GID} /home/te-logs/logs/
+        docker exec te-log-server chmod -R 2775 /home/te-logs/logs/
+        
+        # Set permissions on host side as well
+        if [ "$EUID" -ne 0 ]; then
+          sudo chown -R ${HOST_UID}:${HOST_GID} "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
+          sudo chmod -R 2775 "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
+        else
+          chown -R ${HOST_UID}:${HOST_GID} "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
+          chmod -R 2775 "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
+        fi
+        
+        echo "✅ TE logs restored successfully with correct permissions"
       else
         echo "❌ Failed to restore TE logs"
         rm -rf "$TMP_DIR"

@@ -30,6 +30,7 @@ tasks:
   ###########################################
   init:
     desc: Initialize Git submodules
+    summary: Initialize and update all Git submodules recursively
     aliases: [i]
     status:
       - |
@@ -41,6 +42,7 @@ tasks:
 
   update:
     desc: Update Git submodules to latest commits
+    summary: Update all Git submodules to their latest remote commits
     aliases: [u]
     status:
       - |
@@ -54,14 +56,91 @@ tasks:
   ###########################################
   docker:setup:
     desc: Setup Docker environment (copy env and settings files)
+    summary: |
+      Prepare Docker environment by copying necessary configuration files
+      Uses BUBLIK_DOCKER_DATA_DIR from env
     aliases: [setup]
     deps: [check-deps]
     silent: true
     cmds:
-      - ./scripts/docker_setup.sh
+      - task: docker:setup:env
+      - task: docker:setup:django-settings
+
+  docker:setup:data-dir:
+    desc: Create and setup data directory
+    summary: |
+      Create and setup data directory
+    silent: true
+    deps: [docker:setup:env]
+    status:
+      - test -d "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
+      - test -d "${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming"
+      - test -d "${BUBLIK_DOCKER_DATA_DIR}/te-logs/bad"
+    vars:
+      DIR:
+        sh: |
+          source .env 2>/dev/null
+          if [ -z "$BUBLIK_DOCKER_DATA_DIR" ]; then
+            echo "Error: BUBLIK_DOCKER_DATA_DIR is not set in .env" >&2
+            exit 1
+          fi
+          echo "$BUBLIK_DOCKER_DATA_DIR"
+    cmds:
+      - ./scripts/setup_data_dir.sh {{.DIR}}
+
+  docker:setup:django-settings:
+    desc: Copy django settings template
+    internal: true
+    silent: true
+    cmds:
+      - ./scripts/setup_settings.sh
+
+  docker:setup:env:
+    desc: Copy .env.local to .env
+    internal: true
+    status:
+      - test -f .env
+    silent: true
+    cmds:
+      - ./scripts/setup_env.sh
+      - task: docker:setup:env:uid
+
+  docker:setup:env:uid:
+    desc: Add host UID/GID to .env
+    internal: true
+    silent: true
+    vars:
+      HOST_UID:
+        sh: id -u
+      HOST_GID:
+        sh: id -g
+    cmds:
+      - |
+        if [ -f .env ]; then
+          # Create temporary file
+          tmp_env=$(mktemp)
+          
+          # Process existing .env file
+          while IFS= read -r line || [ -n "$line" ]; do
+            # Skip lines that set HOST_UID or HOST_GID
+            if [[ ! "$line" =~ ^HOST_(UID|GID)= ]]; then
+              echo "$line" >> "$tmp_env"
+            fi
+          done < .env
+          
+          # Add HOST_UID and HOST_GID
+          echo "HOST_UID={{.HOST_UID}}" >> "$tmp_env"
+          echo "HOST_GID={{.HOST_GID}}" >> "$tmp_env"
+          
+          # Replace original .env with updated version
+          mv "$tmp_env" .env
+        fi
 
   docker:dev:watch:
     desc: Start Docker development environment in watch mode
+    summary: |
+      Start development environment with live reload capability
+      Environment will be accessible at BUBLIK_FQDN
     deps: [docker:setup]
     aliases: [dev:watch]
     cmds:
@@ -73,25 +152,46 @@ tasks:
     deps: [docker:setup]
     aliases: [dev:up]
     cmds:
+      - task: docker:setup:data-dir
       - docker compose -f docker-compose.dev.yml up --build -d
       - echo "🚀 Docker development environment started at {{.BUBLIK_FQDN}}"
 
   docker:up:
     desc: Start Docker production environment
+    summary: |
+      Start production environment with optimized settings
+      Environment will be accessible at BUBLIK_FQDN
     deps: [docker:setup]
     aliases: [up]
     cmds:
+      - task: docker:setup:data-dir
       - docker compose -f docker-compose.yml up --build -d
       - echo "🚀 Docker production environment started at {{.BUBLIK_FQDN}}"
 
+  docker:dev:stop:
+    desc: Stop Docker development environment
+    summary: Stop development containers while preserving data
+    aliases: [dev:stop]
+    cmds:
+      - docker compose -f docker-compose.dev.yml down
+
+  docker:stop:
+    desc: Stop Docker production environment
+    summary: Stop and remove production containers while preserving data
+    aliases: [stop]
+    cmds:
+      - docker compose -f docker-compose.yml down
+
   docker:down:
     desc: Stop Docker development environment
+    summary: Stop and remove production containers while preserving data
     aliases: [down]
     cmds:
       - docker compose -f docker-compose.yml down
 
   docker:dev:down:
     desc: Stop Docker development environment
+    summary: Stop and remove development containers while preserving data
     aliases: [dev:down]
     cmds:
       - docker compose -f docker-compose.dev.yml down
@@ -109,8 +209,10 @@ tasks:
 
   docker:nuke:
     prompt: |
-      This will remove all containers, volumes, and unused images.
-      YOU WILL LOSE ALL YOUR DATA!
+      This will remove all containers, volumes, and unused images and logs.
+      YOU WILL LOSE ALL YOUR DATA!!!
+      YOU WILL LOSE ALL YOUR DATA!!!
+      YOU WILL LOSE ALL YOUR DATA!!!
       Are you sure you want to continue? [y/N]
     desc: Clean Docker environment (images, volumes, and logs)
     aliases: [nuke]
@@ -118,7 +220,19 @@ tasks:
       - docker compose -f docker-compose.dev.yml down -v
       - docker compose -f docker-compose.yml down -v
       - docker system prune -af
+      - task: docker:nuke:remove-data
       - test -f .env && rm .env
+
+  docker:nuke:remove-data:
+    desc: Remove Docker data directory
+    silent: true
+    internal: true
+    cmds:
+      - |
+        if [ -n "${BUBLIK_DOCKER_DATA_DIR}" ] && [ -d "${BUBLIK_DOCKER_DATA_DIR}" ]; then
+          echo "Removing ${BUBLIK_DOCKER_DATA_DIR}..."
+          rm -rf "${BUBLIK_DOCKER_DATA_DIR}"
+        fi
 
   ###########################################
   #         Deps                          #
@@ -126,6 +240,7 @@ tasks:
 
   check-deps:
     desc: Check if system dependencies are installed
+    summary: Verify that all required system and Docker dependencies are available
     cmds:
       - task: system:check-deps
       - task: docker:check-deps
@@ -149,6 +264,9 @@ tasks:
   ###########################################
   meta-categorization:
     desc: Trigger meta-categorization process
+    summary: |
+      Start the meta-categorization process for test results
+      Connects to API_URL endpoint
     silent: true
     cmds:
       - ./scripts/meta_categorization.sh "{{.API_URL}}"
@@ -158,6 +276,15 @@ tasks:
   ###########################################
   bootstrap-dev:
     desc: Bootstrap the application and deploy to development environment
+    summary: |
+      Complete development deployment process:
+      1. Start Docker containers in dev mode
+      2. Initialize configurations
+      3. Import initial sessions
+      4. Display admin credentials
+    preconditions:
+      - test -f .env
+      - test -f ./bublik/bublik/settings.py
     cmds:
       - task: docker:dev:up
       - cmd: echo "Waiting for 10 seconds for services to start..." && sleep 10
@@ -167,21 +294,34 @@ tasks:
 
   bootstrap:
     desc: Bootstrap the application and deploy to production
+    summary: |
+      Complete production deployment process:
+      1. Start Docker containers
+      2. Initialize configurations
+      3. Import initial sessions
+      4. Display admin credentials
+    preconditions:
+      - test -f .env
+      - test -f ./bublik/bublik/settings.py
     cmds:
       - task: docker:up
       - cmd: echo "Waiting for 10 seconds for services to start..." && sleep 10
       - task: bootstrap:init-configs
       - task: bootstrap:import-sessions
-      - task: bootstrap:print-credentials
+      - task: print-env-info
 
-  bootstrap:print-credentials:
-    desc: Print admin credentials
+  print-env-info:
+    desc: Print environment information
     silent: true
     cmds:
       - |
         echo "🔑 Admin credentials:"
         echo "  Email: {{.DJANGO_SUPERUSER_EMAIL}}"
         echo "  Password: {{.DJANGO_SUPERUSER_PASSWORD}}"
+        echo "🔑 Data directory:"
+        echo "  {{.BUBLIK_DOCKER_DATA_DIR}}"
+        echo "🔑 INSTANCE URL:"
+        echo "  {{.BUBLIK_FQDN}}"
 
   bootstrap:import-sessions:
     desc: Import Test Sessions from specified file
@@ -215,23 +355,27 @@ tasks:
 
   auth:get-token:
     desc: Get access token by logging in
+    summary: |
+      Get authentication token by logging in with provided credentials
+      Uses DJANGO_SUPERUSER_EMAIL and DJANGO_SUPERUSER_PASSWORD from env
     internal: true
     silent: true
     vars:
       EMAIL: '{{.DJANGO_SUPERUSER_EMAIL | default "admin@bublik.com"}}'
       PASSWORD: '{{.DJANGO_SUPERUSER_PASSWORD | default "admin"}}'
     cmds:
+      - mkdir -p ./tmp
       - |
         echo "🔑 Logging in with {{.EMAIL}}..."
-        response=$(curl -s -c cookies.txt "{{.API_URL}}/auth/login/" \
+        response=$(curl -s -c ./tmp/cookies.txt "{{.API_URL}}/auth/login/" \
           -H 'Content-Type: application/json' \
           --data-raw "{\"email\":\"{{.EMAIL}}\",\"password\":\"{{.PASSWORD}}\"}")
 
-        if grep -q "access_token" cookies.txt; then
+        if grep -q "access_token" ./tmp/cookies.txt; then
           echo "✅ Successfully logged in"
-          token=$(grep "access_token" cookies.txt | cut -f7)
-          echo "$token" > .access_token
-          echo "✅ Token saved to .access_token"
+          token=$(grep "access_token" ./tmp/cookies.txt | cut -f7)
+          echo "$token" > ./tmp/.access_token
+          echo "✅ Token saved to ./tmp/.access_token"
         else
           echo "❌ Login failed"
           echo "$response"
@@ -240,9 +384,10 @@ tasks:
 
   auth:get-token:clean:
     desc: Clean up access token
+    summary: Remove temporary authentication files
     internal: true
     cmds:
-      - rm -f cookies.txt .access_token
+      - rm -f ./tmp/cookies.txt ./tmp/.access_token
 
   ###########################################
   #         Backup Operations              #

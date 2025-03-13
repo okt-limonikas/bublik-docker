@@ -33,7 +33,7 @@ config_exists() {
   local type=$2
   local response
 
-  response=$(curl -s "$API_URL/api/v2/config/" -b cookies.txt)
+  response=$(curl -s "$API_URL/api/v2/config/" -b ./tmp/cookies.txt)
 
   if command -v jq >/dev/null 2>&1; then
     echo "$response" | jq -e ".[] | select(.name == \"$name\" and .type == \"$type\")" >/dev/null
@@ -64,7 +64,7 @@ create_config() {
 
   response=$(curl -s "$API_URL/api/v2/config/" \
     -H 'Content-Type: application/json' \
-    -b cookies.txt \
+    -b ./tmp/cookies.txt \
     --data-raw "{
       \"type\": \"$type\",
       \"name\": \"$name\",

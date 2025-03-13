@@ -31,5 +31,10 @@ dist/
 build/
 out/
 
+tmp/
+
 # Backups
 backups/
+
+# Docker data
+data/

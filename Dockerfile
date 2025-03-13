@@ -98,11 +98,25 @@ WORKDIR /app/bublik
 ###########################################
 FROM base AS log-server
 
+# Add build args for UID and GID
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+
+# Install required packages and modify www-data user/group with error handling
 RUN apt-get update && apt-get install -y \
-  apache2 \
-  file \
-  jq \
-  && rm -rf /var/lib/apt/lists/*
+    apache2 \
+    file \
+    jq \
+    && rm -rf /var/lib/apt/lists/* \
+    # Remove existing www-data user and group if they exist
+    && (deluser www-data || true) \
+    && (delgroup www-data || true) \
+    # Try to create group with specified GID, if fails, find next available GID
+    && (groupadd -g ${HOST_GID} www-data || \
+        groupadd www-data) \
+    # Create user with specified or default UID
+    && (useradd -u ${HOST_UID} -g www-data -s /bin/false -M www-data || \
+        useradd -g www-data -s /bin/false -M www-data)
 
 # Enable CGI module
 RUN a2enmod cgid
@@ -141,7 +155,7 @@ RUN sed -i \
 RUN chmod 750 /home/te-logs/cgi-bin/* /home/te-logs/bin/* \
   && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
   && chown -R www-data:www-data /home/te-logs \
-  && chmod -R 755 /home/te-logs/logs
+  && chmod -R 775 /home/te-logs/logs
 
 COPY ./test-environment/tools/log_server/apache2-te-log-server.conf.template /etc/apache2/conf-available/te-logs.conf
 
