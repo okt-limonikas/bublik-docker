@@ -269,7 +269,7 @@ services:
       - URL_PREFIX=${URL_PREFIX}
       - DOLLAR=${DOLLAR}
     expose:
-      - 80
+      - ${BUBLIK_DOCKER_PROXY_PORT:-80}
     ports:
       - ${BUBLIK_DOCKER_PROXY_PORT:-80}:80
     volumes:
