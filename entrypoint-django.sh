@@ -1,5 +1,18 @@
 #!/bin/bash
 
+source /app/bublik/entrypoint-common.sh
+
+setup_umask
+
+echo "Setting up required directories..."
+ensure_directory "${BUBLIK_LOGDIR}"
+ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/django-logs"
+ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
+ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming"
+ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/bad"
+
+setup_permissions "${BUBLIK_LOGDIR}" "${BUBLIK_DOCKER_DATA_DIR}/django-logs"
+
 echo "Collect Static Files"
 python manage.py collectstatic --noinput
 
@@ -7,7 +20,6 @@ echo "Apply Database Migrations"
 python manage.py makemigrations
 python manage.py migrate
 
-# Create superuser
 echo "Creating Superuser"
 python manage.py shell << EOF
 from django.contrib.auth import get_user_model
@@ -25,4 +37,4 @@ else:
     print(f'Superuser with email {SUPERUSER_EMAIL} already exists.')
 EOF
 
-exec "$@"
+exec_as_user "$@" 

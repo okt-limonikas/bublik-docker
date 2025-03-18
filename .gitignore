@@ -1,48 +1,40 @@
-### Python ###
-# Byte-compiled / optimized
-__pycache__/
-*.py[co]
-
-# Distribution / packaging
-.Python
-.env/
+# OS-specific
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
-.reviewboardrc
+*.iml
+*.swp
+*.swo
 
-### Django ###
-*.log
-*.pid
-
-bublik/data/migrations/*
-!bublik/data/migrations
-!bublik/data/migrations/__init__.py
-
-logs/
-secret.txt
-flower.db
-
-# Came from templates
-bublik/settings.py
-bublik/general.conf
-scripts/create_db
-
-# Precalculated data
-cache/
-
-# Coverage results
-.coverage
-htmlcov/
-
-# Env
+# Env files
 .env
 .envrc.private
 
-# Default logs folder
-te-logs
+# Logs
+*.log
+logs/
+te-logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Static files
-bublik/representation/static
-.DS_Store
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+dist/
+build/
+out/
+
+tmp/
+
+# Backups
+backups/
+
+# Docker data
+data/

@@ -9,10 +9,6 @@
       "label": "IUT"
     },
     {
-      "key": "notes",
-      "label": "Notes"
-    },
-    {
       "key": "total",
       "label": "Total"
     },
@@ -39,6 +35,10 @@
     {
       "key": "configuration",
       "label": "Configuration"
+    },
+    {
+      "key": "notes",
+      "label": "Notes"
     }
   ],
   "DASHBOARD_PAYLOAD": {

@@ -60,14 +60,17 @@ services:
       - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
       - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
       - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
+      - HOST_UID=${HOST_UID:-1000}
+      - HOST_GID=${HOST_GID:-1000}
+      - UMASK=${UMASK:-022}
     expose:
       - 8000
-    entrypoint: ./entrypoint.sh
+    entrypoint: ./entrypoint-django.sh
     depends_on:
       - db
       - redis
     volumes:
-      - logs_data:/app/bublik/logs
+      - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs
       - static_data:/app/bublik/bublik/representation/static
     healthcheck:
       test:
@@ -101,6 +104,8 @@ services:
     image: redis
     volumes:
       - "redis_data:/data"
+    expose:
+      - 6379
 
   rabbitmq:
     container_name: rabbitmq
@@ -159,12 +164,16 @@ services:
       - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
       - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
       - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
+      - HOST_UID=${HOST_UID:-1000}
+      - HOST_GID=${HOST_GID:-1000}
+      - UMASK=${UMASK:-022}
+    entrypoint: /app/bublik/entrypoint-celery.sh
     depends_on:
       - db
       - redis
       - rabbitmq
     volumes:
-      - logs_data:/app/bublik/logs:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs:rw
     healthcheck:
       test: ["CMD-SHELL", "celery -A ${CELERY_APP} inspect ping || exit 1"]
       interval: 30s
@@ -243,13 +252,19 @@ services:
       context: .
       dockerfile: Dockerfile
       target: log-server
-    ports:
-      - "4321:80"
-    volumes:
-      - te-logs:/home/te-logs:rw
     environment:
       - APACHE_LOG_DIR=/var/log/apache2
       - TE_INSTALL=/app/te/build/inst
+      - HOST_UID=${HOST_UID:-1000}
+      - HOST_GID=${HOST_GID:-1000}
+      - UMASK=${UMASK:-022}
+      - BUBLIK_FQDN=${BUBLIK_FQDN}
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
+      - URL_PREFIX=${URL_PREFIX}
+    volumes:
+      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs:/home/te-logs/logs:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming:/home/te-logs/incoming:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/bad:/home/te-logs/bad:rw
     restart: unless-stopped
 
   nginx:
@@ -263,10 +278,11 @@ services:
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
       - URL_PREFIX=${URL_PREFIX}
       - DOLLAR=${DOLLAR}
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
     expose:
-      - 80
+      - ${BUBLIK_DOCKER_PROXY_PORT}
     ports:
-      - 80:80
+      - ${BUBLIK_DOCKER_PROXY_PORT}:${BUBLIK_DOCKER_PROXY_PORT}
     volumes:
       - ./nginx/templates/prod:/etc/nginx/templates:ro
       - static_data:/app/bublik/bublik/representation/static
@@ -276,7 +292,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --fail http://localhost:80${URL_PREFIX}/v2/ || exit 1",
+          "curl --fail http://localhost:${BUBLIK_DOCKER_PROXY_PORT}${URL_PREFIX}/v2/ || exit 1",
         ]
       interval: 30s
       timeout: 10s
@@ -284,8 +300,6 @@ services:
       start_period: 10s
 
 volumes:
-  te-logs:
-  logs_data:
   db_data:
   static_data:
   flower_data:
