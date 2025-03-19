@@ -18,7 +18,8 @@ __pycache__
 dist
 docs
 env
-logs
+**/logs/*
+!**/logs/.gitkeep
 web/media
 web/static/CACHE
 stats
