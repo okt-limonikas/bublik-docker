@@ -11,7 +11,7 @@
       "name": "Test Logs Base"
     },
     {
-      "uri": ["http://te-log-server/logs/"],
+      "uri": ["@@LOGS_URL@@"],
       "name": "Local Logs Base"
     }
   ]
