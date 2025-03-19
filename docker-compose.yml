@@ -166,6 +166,10 @@ services:
       - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
       - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
       - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
+      - HOST_UID=${HOST_UID:-1000}
+      - HOST_GID=${HOST_GID:-1000}
+      - UMASK=${UMASK:-022}
+    entrypoint: /app/bublik/entrypoint-celery.sh
     depends_on:
       - db
       - redis
