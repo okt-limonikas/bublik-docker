@@ -21,6 +21,7 @@ services:
       --log-level info
       --name "${BUBLIK_WEB_NAME}"
     environment:
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - PER_CONF_DIR=${PER_CONF_DIR}
       - SECRET_KEY=${SECRET_KEY}
       - URL_PREFIX=${URL_PREFIX}
@@ -104,6 +105,8 @@ services:
     image: redis
     volumes:
       - "redis_data:/data"
+    expose:
+      - 6379
 
   rabbitmq:
     container_name: rabbitmq
@@ -128,6 +131,7 @@ services:
         - DOCS_URL=${DOCS_URL}
     command: celery -A ${CELERY_APP} worker --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} --concurrency 1 -l ${CELERY_LOG_LEVEL}
     environment:
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - PER_CONF_DIR=${PER_CONF_DIR}
       - SECRET_KEY=${SECRET_KEY}
       - URL_PREFIX=${URL_PREFIX}
@@ -186,6 +190,7 @@ services:
         - DOCS_URL=${DOCS_URL}
     command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
     environment:
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - PER_CONF_DIR=${PER_CONF_DIR}
       - SECRET_KEY=${SECRET_KEY}
       - URL_PREFIX=${URL_PREFIX}
@@ -246,8 +251,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: log-server
-    ports:
-      - "4321:80"
     volumes:
       - te-logs:/home/te-logs:rw
     environment:
@@ -256,6 +259,7 @@ services:
       - HOST_UID=${HOST_UID:-1000}
       - HOST_GID=${HOST_GID:-1000}
       - UMASK=${UMASK:-022}
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
     restart: unless-stopped
 
   nginx:
@@ -269,10 +273,11 @@ services:
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
       - URL_PREFIX=${URL_PREFIX}
       - DOLLAR=${DOLLAR}
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
     expose:
-      - 80
+      - ${BUBLIK_DOCKER_PROXY_PORT}
     ports:
-      - 80:80
+      - ${BUBLIK_DOCKER_PROXY_PORT}:${BUBLIK_DOCKER_PROXY_PORT}
     volumes:
       - ./nginx/templates/prod:/etc/nginx/templates:ro
       - static_data:/app/bublik/bublik/representation/static
@@ -282,7 +287,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --fail http://localhost:80${URL_PREFIX}/v2/ || exit 1",
+          "curl --fail http://localhost:${BUBLIK_DOCKER_PROXY_PORT}${URL_PREFIX}/v2/ || exit 1",
         ]
       interval: 30s
       timeout: 10s
