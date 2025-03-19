@@ -71,7 +71,7 @@ services:
       - db
       - redis
     volumes:
-      - logs_data:/app/bublik/logs
+      - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs
       - static_data:/app/bublik/bublik/representation/static
     healthcheck:
       test:
@@ -175,7 +175,7 @@ services:
       - redis
       - rabbitmq
     volumes:
-      - logs_data:/app/bublik/logs:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs:rw
     healthcheck:
       test: ["CMD-SHELL", "celery -A ${CELERY_APP} inspect ping || exit 1"]
       interval: 30s
@@ -255,8 +255,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: log-server
-    volumes:
-      - te-logs:/home/te-logs:rw
     environment:
       - APACHE_LOG_DIR=/var/log/apache2
       - TE_INSTALL=/app/te/build/inst
@@ -264,6 +262,10 @@ services:
       - HOST_GID=${HOST_GID:-1000}
       - UMASK=${UMASK:-022}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
+    volumes:
+      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs:/home/te-logs/logs:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming:/home/te-logs/incoming:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/bad:/home/te-logs/bad:rw
     restart: unless-stopped
 
   nginx:
@@ -299,8 +301,6 @@ services:
       start_period: 10s
 
 volumes:
-  te-logs:
-  logs_data:
   db_data:
   static_data:
   flower_data:
