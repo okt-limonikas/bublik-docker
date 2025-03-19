@@ -301,7 +301,9 @@ services:
       - HOST_UID=${HOST_UID:-1000}
       - HOST_GID=${HOST_GID:-1000}
       - UMASK=${UMASK:-022}
+      - BUBLIK_FQDN=${BUBLIK_FQDN}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
+      - URL_PREFIX=${URL_PREFIX}
     restart: unless-stopped
 
 volumes:

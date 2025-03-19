@@ -261,7 +261,9 @@ services:
       - HOST_UID=${HOST_UID:-1000}
       - HOST_GID=${HOST_GID:-1000}
       - UMASK=${UMASK:-022}
+      - BUBLIK_FQDN=${BUBLIK_FQDN}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
+      - URL_PREFIX=${URL_PREFIX}
     volumes:
       - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs:/home/te-logs/logs:rw
       - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming:/home/te-logs/incoming:rw
