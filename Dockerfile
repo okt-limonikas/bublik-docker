@@ -10,31 +10,33 @@ ENV PATH="/app/te/build/inst/default/bin:$PATH"
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-  gettext=0.21-12 \
-  python3-celery=5.2.6-5 \
-  rsync=3.2.7-1 \
-  flex=2.6.4-8.2 \
-  bison=2:3.8.2* \
-  ninja-build=1.11.* \
-  libjansson-dev=2.14-2 \
-  libjansson-doc=2.14-2 \
-  libjansson4=2.14-2 \
-  libpopt-dev=1.19* \
-  libpcre3-dev=2:8.39-15 \
-  pixz=1.0.7-2 \
-  libxml-parser-perl=2.46-4 \
-  build-essential=12.9 \
-  curl=7.88.1-10* \
-  libkrb5-dev=1.20.1-2* \
-  libffi-dev=3.4.4-1 \
-  libxml2-dev=2.9.14* \
-  libyaml-dev=0.2.5-1 \
-  libssl-dev=3.0.15-1* \
-  libglib2.0-dev=2.74.6-2* \
-  git=1:2.39.5-0* \
-  && rm -rf /var/lib/apt/lists/* \
-  && cpan -T JSON
+    && apt-get install -y --no-install-recommends \
+    gettext=0.21 \
+    gosu \
+    util-linux \
+    python3-celery=5.2.6 \
+    rsync=3.2.7 \
+    flex=2.6.4 \
+    bison=2:3.8.2 \
+    ninja-build=1.11 \
+    libjansson-dev=2.14 \
+    libjansson-doc=2.14 \
+    libjansson4=2.14 \
+    libpopt-dev=1.19 \
+    libpcre3-dev=2:8.39 \
+    pixz=1.0.7 \
+    libxml-parser-perl=2.46 \
+    build-essential=12.9 \
+    curl=7.88.1 \
+    libkrb5-dev=1.20.1 \
+    libffi-dev=3.4.4 \
+    libxml2-dev=2.9.14 \
+    libyaml-dev=0.2.5 \
+    libssl-dev=3.0.15 \
+    libglib2.0-dev=2.74.6 \
+    git=1:2.39.5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && cpan -T JSON
 
 # Install UV
 ADD https://astral.sh/uv/install.sh /uv-installer.sh
