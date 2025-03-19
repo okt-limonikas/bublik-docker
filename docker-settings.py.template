@@ -80,6 +80,7 @@ MIDDLEWARE = [
 ]
 
 PREFIX = os.getenv('URL_PREFIX', '')
+BUBLIK_DOCKER_PROXY_PORT = os.getenv('BUBLIK_DOCKER_PROXY_PORT', '80')
 URL_PREFIX = f'{PREFIX}'[1:]
 
 ROOT_URLCONF = 'bublik.urls'
