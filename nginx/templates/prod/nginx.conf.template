@@ -1,13 +1,13 @@
 upstream django {
-    server django:8000;
+    server host.docker.internal:8000;
 }
 
 upstream flower {
-    server flower:5555;
+    server host.docker.internal:5555;
 }
 
 upstream te-log-server {
-    server te-log-server:80;
+    server host.docker.internal:13000;
 }
 
 map $http_upgrade $connection_upgrade {

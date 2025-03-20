@@ -1,6 +1,9 @@
 services:
   django:
     container_name: django
+    network_mode: host
+    extra_hosts:
+      - host.docker.internal:host-gateway
     build:
       context: .
       dockerfile: Dockerfile
@@ -93,6 +96,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data/
+    ports:
+      - 5432:5432
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} || exit 1"]
       interval: 30s
@@ -107,12 +112,17 @@ services:
       - "redis_data:/data"
     expose:
       - 6379
+    ports:
+      - 6379:6379
 
   rabbitmq:
     container_name: rabbitmq
     image: rabbitmq:3-management
     expose:
       - 5672
+    network_mode: host
+    extra_hosts:
+      - host.docker.internal:host-gateway
     healthcheck:
       test: ["CMD-SHELL", "rabbitmqctl status || exit 1"]
       interval: 30s
@@ -170,6 +180,9 @@ services:
       - HOST_GID=${HOST_GID:-1000}
       - UMASK=${UMASK:-022}
     entrypoint: /app/bublik/entrypoint-celery.sh
+    network_mode: host
+    extra_hosts:
+      - host.docker.internal:host-gateway
     depends_on:
       - db
       - redis
@@ -185,6 +198,9 @@ services:
 
   flower:
     container_name: flower
+    network_mode: host
+    extra_hosts:
+      - host.docker.internal:host-gateway
     build:
       context: .
       dockerfile: Dockerfile
@@ -264,6 +280,9 @@ services:
       - BUBLIK_FQDN=${BUBLIK_FQDN}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - URL_PREFIX=${URL_PREFIX}
+    network_mode: host
+    extra_hosts:
+      - host.docker.internal:host-gateway
     volumes:
       - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs:/home/te-logs/logs:rw
       - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming:/home/te-logs/incoming:rw
@@ -291,6 +310,8 @@ services:
       - static_data:/app/bublik/bublik/representation/static
     depends_on:
       - django
+    extra_hosts:
+      - host.docker.internal:host-gateway
     healthcheck:
       test:
         [
