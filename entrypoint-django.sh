@@ -6,12 +6,13 @@ setup_umask
 
 echo "Setting up required directories..."
 ensure_directory "${BUBLIK_LOGDIR}"
+ensure_directory "/app/bublik/logs"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/django-logs"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/bad"
 
-setup_permissions "${BUBLIK_LOGDIR}" "${BUBLIK_DOCKER_DATA_DIR}/django-logs"
+setup_permissions "${BUBLIK_LOGDIR}" "${BUBLIK_DOCKER_DATA_DIR}/django-logs" "/app/bublik/logs"
 
 echo "Collect Static Files"
 python manage.py collectstatic --noinput

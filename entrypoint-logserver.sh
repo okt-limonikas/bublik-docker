@@ -3,15 +3,25 @@
 setup_config_files() {
     echo "Updating configuration files with environment variables..."
     
-    BUBLIK_FQDN=${BUBLIK_FQDN:-localhost}
+    BUBLIK_FQDN=${BUBLIK_FQDN:-http://localhost}
     URL_PREFIX=${URL_PREFIX:-""}
+    
+    PORT_SUFFIX=""
+    HOSTNAME=$(echo "$BUBLIK_FQDN" | sed -e 's|^http://||' -e 's|^https://||')
+    echo "Extracted hostname: $HOSTNAME"
+    if [[ "$HOSTNAME" == "localhost" ]] || [[ "$HOSTNAME" == "127.0.0.1" ]]; then
+        PORT_SUFFIX=":${BUBLIK_DOCKER_PROXY_PORT}"
+    fi
+    echo "Final URL will be: ${BUBLIK_FQDN}${PORT_SUFFIX}${URL_PREFIX}"
+
+    sed -i 's/--negotiate//' /home/te-logs/bin/publish-logs-unpack.sh
     
     sed -i \
         -e "s,@@TE_INSTALL@@,/app/te/build/inst,g" \
         -e "s,/srv/logs,/home/te-logs/logs,g" \
         -e "s,root_dir=\"/srv/logs\",root_dir=\"/home/te-logs/logs\",g" \
-        -e "s,@@BUBLIK_URL@@,${BUBLIK_FQDN}:${BUBLIK_DOCKER_PROXY_PORT}${URL_PREFIX},g" \
-        -e "s,@@LOGS_URL@@,${BUBLIK_FQDN}:${BUBLIK_DOCKER_PROXY_PORT}${URL_PREFIX}/logs,g" \
+        -e "s,@@BUBLIK_URL@@,${BUBLIK_FQDN}${PORT_SUFFIX}${URL_PREFIX},g" \
+        -e "s,@@LOGS_URL@@,${BUBLIK_FQDN}${PORT_SUFFIX}${URL_PREFIX}/logs,g" \
         -e "s,@@LOGS_DIR@@,/home/te-logs/logs,g" \
         -e "s,@@LOGS_INCOMING@@,/home/te-logs/incoming,g" \
         -e "s,@@LOGS_BAD@@,/home/te-logs/bad,g" \
@@ -26,6 +36,10 @@ setup_config_files() {
         -e "s,@@LOGS_DIR@@,/home/te-logs/logs,g" \
         -e "s,@@LOGS_URL_PATH@@,${URL_PREFIX}/logs,g" \
         /etc/apache2/conf-available/te-logs.conf
+    
+    sed -i \
+        -e 's/Listen 80/Listen ${BUBLIK_DOCKER_TE_LOG_SERVER_PORT}/' \
+        /etc/apache2/ports.conf
     
     echo "Configuration files updated successfully"
 }
@@ -42,7 +56,6 @@ ensure_directory "/home/te-logs/cgi-bin"
 ensure_directory "/home/te-logs/bin"
 
 setup_permissions "/home/te-logs/logs" "/home/te-logs/incoming" "/home/te-logs/bad" "/home/te-logs/cgi-bin" "/home/te-logs/bin"
-
 
 setup_config_files
 

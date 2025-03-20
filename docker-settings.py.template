@@ -176,6 +176,8 @@ DATABASES = {
     },
 }
 
+REDIS_PORT = os.getenv('REDIS_PORT', '6379')
+REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
 
 CACHES = {
     'default': {
@@ -183,7 +185,7 @@ CACHES = {
     },
     'run': {
         'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': f'{os.getenv('REDIS_HOST', 'redis')}:6379',
+        'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
         'OPTIONS': {
             'DB': 0,
             'COMPRESSOR_CLASS': 'redis_cache.compressors.BZip2Compressor',
@@ -282,9 +284,11 @@ if DEBUG:
         for k, _ in CACHES.items():
             CACHES[k]['BACKEND'] = 'django.core.cache.backends.dummy.DummyCache'
 
+RABBITMQ_HOST = os.getenv('RABBITMQ_HOST', 'rabbitmq')
+RABBITMQ_PORT = os.getenv('RABBITMQ_PORT', '5672')
 
 CELERY_APP = os.getenv('CELERY_APP', 'bublik.interfaces')
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'amqp://rabbitmq')
+CELERY_BROKER_URL = f'amqp://{RABBITMQ_HOST}:{RABBITMQ_PORT}'
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'rpc://')
 CELERY_ACCEPT_CONTENT = [os.getenv('CELERY_ACCEPT_CONTENT', 'application/json')]
 CELERY_TASK_SERIALIZER = os.getenv('CELERY_TASK_SERIALIZER', 'json')

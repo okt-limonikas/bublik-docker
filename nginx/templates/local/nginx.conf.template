@@ -1,17 +1,17 @@
 upstream django {
-    server django:8000;
+    server localhost:${BUBLIK_DOCKER_DJANGO_PORT};
 }
 
 upstream flower {
-    server flower:5555;
+    server localhost:${FLOWER_PORT};
 }
 
 upstream bublik-ui {
-    server bublik-ui:4200;
+    server localhost:${BUBLIK_DOCKER_BUBLIK_UI_PORT};
 }
 
 upstream te-log-server {
-    server te-log-server:80;
+    server localhost:${BUBLIK_DOCKER_TE_LOG_SERVER_PORT};
 }
 
 map $http_upgrade $connection_upgrade {
@@ -56,11 +56,13 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
 
-        rewrite ^${URL_PREFIX}/logs/(.*) /logs/$1 break;
-        proxy_pass http://te-log-server;
+        proxy_pass http://te-log-server${URL_PREFIX}/logs/;
 
-        proxy_redirect ~^/(logs/.*)$ ${URL_PREFIX}/$1;
+        proxy_redirect ~^http://[^/]+/(.*)$ $scheme://$host${URL_PREFIX}/$1;
+        proxy_redirect ~^https://[^/]+/(.*)$ $scheme://$host${URL_PREFIX}/$1;
 
         sub_filter 'href="/' 'href="${URL_PREFIX}/';
         sub_filter 'src="/icons/' 'src="${URL_PREFIX}/icons/';

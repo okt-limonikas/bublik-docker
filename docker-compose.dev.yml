@@ -8,12 +8,15 @@ services:
       args:
         - URL_PREFIX=${URL_PREFIX}
         - DOCS_URL=${DOCS_URL}
-    command: python manage.py runserver 0.0.0.0:8000
+    command: python manage.py runserver ${BUBLIK_DOCKER_DJANGO_HOST}:${BUBLIK_DOCKER_DJANGO_PORT}
     entrypoint: ./entrypoint-django.sh
+    network_mode: host
     environment:
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - PER_CONF_DIR=${PER_CONF_DIR}
       - SECRET_KEY=${SECRET_KEY}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
       - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@bublik.com}
       - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-admin}
       - URL_PREFIX=${URL_PREFIX}
@@ -34,7 +37,6 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - CELERY_APP=${CELERY_APP}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
       - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
@@ -46,7 +48,7 @@ services:
       - FLOWER_PORT=${FLOWER_PORT}
       - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
       - REDIS_HOST=${REDIS_HOST}
-      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - REDIS_PORT=${REDIS_PORT}
       - BUBLIK_WORKERS=${BUBLIK_WORKERS}
       - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
       - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
@@ -58,8 +60,6 @@ services:
       - HOST_UID=${HOST_UID:-1000}
       - HOST_GID=${HOST_GID:-1000}
       - UMASK=${UMASK:-022}
-    ports:
-      - 8000:8000
     depends_on:
       - db
       - redis
@@ -88,21 +88,28 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data/
     ports:
-      - 5432:5432
+      - ${DB_PORT}:5432
 
   redis:
     container_name: redis
     image: redis
+    expose:
+      - ${REDIS_PORT}
+    ports:
+      - ${REDIS_PORT}:6379
 
   rabbitmq:
     container_name: rabbitmq
     image: rabbitmq:3-management
+    expose:
+      - ${RABBITMQ_PORT}
     ports:
-      - 5672:5672
+      - ${RABBITMQ_PORT}:5672
       - 15672:15672
 
   celery:
     container_name: celery
+    network_mode: host
     build:
       context: .
       dockerfile: Dockerfile
@@ -131,13 +138,14 @@ services:
       - BUBLIK_LOG=${BUBLIK_LOG}
       - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
       - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
       - DB_HOST=${DB_HOST}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - CELERY_APP=${CELERY_APP}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
       - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
@@ -149,7 +157,7 @@ services:
       - FLOWER_PORT=${FLOWER_PORT}
       - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
       - REDIS_HOST=${REDIS_HOST}
-      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - REDIS_PORT=${REDIS_PORT}
       - BUBLIK_WORKERS=${BUBLIK_WORKERS}
       - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
       - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
@@ -170,6 +178,7 @@ services:
 
   flower:
     container_name: flower
+    network_mode: host
     build:
       context: .
       dockerfile: Dockerfile
@@ -186,6 +195,8 @@ services:
       - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
       - BUBLIK_SRC=${BUBLIK_SRC}
       - TE_BASE=${TE_BASE}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
       - TMPDIR=${TMPDIR}
       - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
       - BUBLIK_LOG=${BUBLIK_LOG}
@@ -197,7 +208,6 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - CELERY_APP=${CELERY_APP}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
       - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
@@ -209,13 +219,11 @@ services:
       - FLOWER_PORT=${FLOWER_PORT}
       - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
       - REDIS_HOST=${REDIS_HOST}
-      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - REDIS_PORT=${REDIS_PORT}
       - BUBLIK_WORKERS=${BUBLIK_WORKERS}
       - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
       - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
       - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
-    ports:
-      - 5555:5555
     depends_on:
       - django
       - db
@@ -236,13 +244,12 @@ services:
 
   nginx:
     container_name: nginx
+    network_mode: host
     build:
       context: .
       dockerfile: ./nginx/Dockerfile
       args:
         - URL_PREFIX=${URL_PREFIX}
-    ports:
-      - ${BUBLIK_DOCKER_PROXY_PORT:-80}:${BUBLIK_DOCKER_PROXY_PORT}
     volumes:
       - ./nginx/templates/local:/etc/nginx/templates
       - static_data:/app/bublik/bublik/representation/static
@@ -251,6 +258,10 @@ services:
       - URL_PREFIX=${URL_PREFIX}
       - DOLLAR=${DOLLAR}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
+      - BUBLIK_DOCKER_TE_LOG_SERVER_PORT=${BUBLIK_DOCKER_TE_LOG_SERVER_PORT}
+      - BUBLIK_DOCKER_DJANGO_PORT=${BUBLIK_DOCKER_DJANGO_PORT}
+      - BUBLIK_DOCKER_BUBLIK_UI_PORT=${BUBLIK_DOCKER_BUBLIK_UI_PORT}
+      - FLOWER_PORT=${FLOWER_PORT}
     depends_on:
       - django
       - flower
@@ -258,13 +269,14 @@ services:
 
   bublik-ui:
     container_name: bublik-ui
+    network_mode: host
     build:
       context: ./bublik-ui
       dockerfile: ./apps/bublik/Dockerfile.dev
     environment:
       - BASE_URL=${URL_PREFIX}/v2
-    ports:
-      - 4200:4200
+    ## ports:
+    ##  - ${BUBLIK_DOCKER_BUBLIK_UI_PORT}:4200
     develop:
       watch:
         - action: sync
@@ -278,15 +290,17 @@ services:
   mailpit:
     image: axllent/mailpit
     container_name: mailpit
+    network_mode: host
     restart: unless-stopped
-    ports:
-      - 8025:8025
-      - 1025:1025
+    ## ports:
+    ##   - 8025:8025
+    ##   - 1025:1025
     environment:
       - MP_SMTP_TLS_REQUIRED=${MP_SMTP_TLS_REQUIRED:-false}
 
   te-log-server:
     container_name: te-log-server
+    network_mode: host
     build:
       context: .
       dockerfile: Dockerfile
@@ -303,6 +317,7 @@ services:
       - UMASK=${UMASK:-022}
       - BUBLIK_FQDN=${BUBLIK_FQDN}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
+      - BUBLIK_DOCKER_TE_LOG_SERVER_PORT=${BUBLIK_DOCKER_TE_LOG_SERVER_PORT}
       - URL_PREFIX=${URL_PREFIX}
     restart: unless-stopped
 

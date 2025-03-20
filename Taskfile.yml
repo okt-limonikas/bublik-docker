@@ -87,14 +87,6 @@ tasks:
     cmds:
       - task: docker:setup:env
       - task: docker:setup:django-settings
-      - cmd: |
-          echo "⚠️ Warning: Automatic import of logs via \`task import-log -- /path/to/file.tar\` does not work with localhost for now"
-          echo "🛠️ Please adjust BUBLIK_FQDN in .env to your actual machine IP address for automatic logs import to work"
-          echo "💡 Example valid configuration:"
-          echo "BUBLIK_FQDN=http://192.168.1.122"
-          echo "BUBLIK_DOCKER_PROXY_PORT=14000"
-          echo "URL_PREFIX=/prefix"
-          echo "FLOWER_URL_PREFIX=prefix/flower # Don't add forward slash"
 
   docker:setup:django-settings:
     desc: Copy django settings template
