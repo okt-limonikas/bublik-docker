@@ -5,6 +5,8 @@ setup_config_files() {
     
     BUBLIK_FQDN=${BUBLIK_FQDN:-localhost}
     URL_PREFIX=${URL_PREFIX:-""}
+
+    sed -i 's/--negotiate//' /home/te-logs/bin/publish-logs-unpack.sh
     
     sed -i \
         -e "s,@@TE_INSTALL@@,/app/te/build/inst,g" \
@@ -26,6 +28,10 @@ setup_config_files() {
         -e "s,@@LOGS_DIR@@,/home/te-logs/logs,g" \
         -e "s,@@LOGS_URL_PATH@@,${URL_PREFIX}/logs,g" \
         /etc/apache2/conf-available/te-logs.conf
+    
+    sed -i \
+        -e 's/Listen 80/Listen 13000/' \
+        /etc/apache2/ports.conf
     
     echo "Configuration files updated successfully"
 }
