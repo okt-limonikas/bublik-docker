@@ -6,6 +6,16 @@ setup_config_files() {
     BUBLIK_FQDN=${BUBLIK_FQDN:-localhost}
     URL_PREFIX=${URL_PREFIX:-""}
     
+    if [ "$BUBLIK_FQDN" = "http://localhost" ] || [ "$BUBLIK_FQDN" = "http://127.0.0.1" ]; then
+        BUBLIK_URL="http://django:8000"
+        LOGS_URL="http://te-log-server${URL_PREFIX}/logs"
+
+        sed -i \
+            -e "s,^BUBLIK_URL=.*,BUBLIK_URL=\"${BUBLIK_URL}\"," \
+            -e "s,^LOGS_URL=.*,LOGS_URL=\"${LOGS_URL}\"," \
+            /home/te-logs/bin/publish-incoming-logs
+    fi
+    
     sed -i \
         -e "s,@@TE_INSTALL@@,/app/te/build/inst,g" \
         -e "s,/srv/logs,/home/te-logs/logs,g" \
@@ -26,7 +36,7 @@ setup_config_files() {
         -e "s,@@LOGS_DIR@@,/home/te-logs/logs,g" \
         -e "s,@@LOGS_URL_PATH@@,${URL_PREFIX}/logs,g" \
         /etc/apache2/conf-available/te-logs.conf
-    
+
     echo "Configuration files updated successfully"
 }
 
@@ -42,7 +52,6 @@ ensure_directory "/home/te-logs/cgi-bin"
 ensure_directory "/home/te-logs/bin"
 
 setup_permissions "/home/te-logs/logs" "/home/te-logs/incoming" "/home/te-logs/bad" "/home/te-logs/cgi-bin" "/home/te-logs/bin"
-
 
 setup_config_files
 
