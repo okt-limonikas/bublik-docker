@@ -1,5 +1,6 @@
 services:
   django:
+    container_name: ${COMPOSE_PROJECT_NAME}-django
     build:
       context: .
       dockerfile: Dockerfile
@@ -78,6 +79,7 @@ services:
           action: rebuild
 
   db:
+    container_name: ${COMPOSE_PROJECT_NAME}-db
     image: postgres
     environment:
       POSTGRES_DB: bublik
@@ -89,6 +91,7 @@ services:
       - ${DB_PORT}:5432
 
   redis:
+    container_name: ${COMPOSE_PROJECT_NAME}-redis
     image: redis
     expose:
       - ${REDIS_PORT}
@@ -96,6 +99,7 @@ services:
       - ${REDIS_PORT}:6379
 
   rabbitmq:
+    container_name: ${COMPOSE_PROJECT_NAME}-rabbitmq
     image: rabbitmq:3-management
     expose:
       - ${RABBITMQ_PORT}
@@ -104,6 +108,7 @@ services:
       - 15672:15672
 
   celery:
+    container_name: ${COMPOSE_PROJECT_NAME}-celery
     network_mode: host
     build:
       context: .
@@ -172,6 +177,7 @@ services:
           action: rebuild
 
   flower:
+    container_name: ${COMPOSE_PROJECT_NAME}-flower
     network_mode: host
     build:
       context: .
@@ -237,6 +243,7 @@ services:
           action: rebuild
 
   nginx:
+    container_name: ${COMPOSE_PROJECT_NAME}-nginx
     network_mode: host
     build:
       context: .
@@ -261,6 +268,7 @@ services:
       - bublik-ui
 
   bublik-ui:
+    container_name: ${COMPOSE_PROJECT_NAME}-bublik-ui
     network_mode: host
     build:
       context: ./bublik-ui
@@ -280,6 +288,7 @@ services:
           path: ./bublik-ui/package.json
 
   mailpit:
+    container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     image: axllent/mailpit
     network_mode: host
     restart: unless-stopped
@@ -290,6 +299,7 @@ services:
       - MP_SMTP_TLS_REQUIRED=${MP_SMTP_TLS_REQUIRED:-false}
 
   te-log-server:
+    container_name: ${COMPOSE_PROJECT_NAME}-te-log-server
     network_mode: host
     build:
       context: .

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Parse command line arguments
 if [ "$#" -lt 1 ]; then
   echo "❌ Missing required arguments"
   echo "Usage: $0 <file.tar>"
@@ -14,9 +13,19 @@ if [ ! -f "$FILE" ]; then
   exit 1
 fi
 
+if [ -f .env ]; then
+  export $(cat .env | grep -v '^#' | xargs)
+fi
+
+COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-bublik}
+BUBLIK_DOCKER_DATA_DIR=${BUBLIK_DOCKER_DATA_DIR:-./data}
+
+TARGET_DIR="${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming"
+mkdir -p "$TARGET_DIR"
+
 FILENAME=$(basename "$FILE")
-echo "📝 Copying $FILENAME to container..."
-docker cp "$FILE" te-log-server:/home/te-logs/incoming/
+echo "📝 Copying $FILENAME to $TARGET_DIR..."
+cp "$FILE" "$TARGET_DIR/"
 
 echo "🔄 Processing logs..."
-docker exec -it --user "$(id -u):$(id -g)" te-log-server /bin/bash -c "cd /home/te-logs/bin && ./publish-incoming-logs"
+docker exec -it --user "$(id -u):$(id -g)" "${COMPOSE_PROJECT_NAME}-te-log-server" /bin/bash -c "/home/te-logs/bin/publish-incoming-logs"

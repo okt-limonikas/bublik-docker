@@ -10,7 +10,9 @@ setup_config_files() {
     HOSTNAME=$(echo "$BUBLIK_FQDN" | sed -e 's|^http://||' -e 's|^https://||')
     echo "Extracted hostname: $HOSTNAME"
     if [[ "$HOSTNAME" == "localhost" ]] || [[ "$HOSTNAME" == "127.0.0.1" ]]; then
-        PORT_SUFFIX=":${BUBLIK_DOCKER_PROXY_PORT}"
+        if [[ "${BUBLIK_DOCKER_PROXY_PORT}" != "80" ]] && [[ "${BUBLIK_DOCKER_PROXY_PORT}" != "443" ]]; then
+            PORT_SUFFIX=":${BUBLIK_DOCKER_PROXY_PORT}"
+        fi
     fi
     echo "Final URL will be: ${BUBLIK_FQDN}${PORT_SUFFIX}${URL_PREFIX}"
 
