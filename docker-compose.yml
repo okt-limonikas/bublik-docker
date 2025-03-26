@@ -201,7 +201,7 @@ services:
       args:
         - URL_PREFIX=${URL_PREFIX}
         - DOCS_URL=${DOCS_URL}
-    command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
+    command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX} --port=${FLOWER_PORT}
     environment:
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - PER_CONF_DIR=${PER_CONF_DIR}
@@ -252,7 +252,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --fail http://localhost:5555/${FLOWER_URL_PREFIX}/ || exit 1",
+          "curl --fail http://localhost:${FLOWER_PORT}/${FLOWER_URL_PREFIX}/ || exit 1",
         ]
       interval: 30s
       timeout: 10s
@@ -280,6 +280,7 @@ services:
       - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs:/home/te-logs/logs:rw
       - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming:/home/te-logs/incoming:rw
       - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/bad:/home/te-logs/bad:rw
+      - static_te_html:/app/te-logs-static
     restart: unless-stopped
 
   nginx:
@@ -304,8 +305,10 @@ services:
     volumes:
       - ./nginx/templates/prod:/etc/nginx/templates:ro
       - static_data:/app/bublik/bublik/representation/static
+      - static_te_html:/app/te-logs-static
     depends_on:
       - django
+      - te-log-server
     healthcheck:
       test:
         [
@@ -322,3 +325,4 @@ volumes:
   static_data:
   flower_data:
   redis_data:
+  static_te_html:

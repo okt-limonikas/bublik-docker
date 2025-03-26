@@ -28,4 +28,4 @@ echo "📝 Copying $FILENAME to $TARGET_DIR..."
 cp "$FILE" "$TARGET_DIR/"
 
 echo "🔄 Processing logs..."
-docker exec -it --user "$(id -u):$(id -g)" "${COMPOSE_PROJECT_NAME}-te-log-server" /bin/bash -c "/home/te-logs/bin/publish-incoming-logs"
+docker exec -it "${COMPOSE_PROJECT_NAME}-te-log-server" /bin/bash -c "/home/te-logs/bin/publish-incoming-logs"

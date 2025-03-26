@@ -62,7 +62,6 @@ server {
         sub_filter 'src="/icons/' 'src="${URL_PREFIX}/icons/';
         sub_filter 'src="/' 'src="${URL_PREFIX}/';
         sub_filter_once off;
-        sub_filter_types text/html;
 
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
@@ -79,5 +78,9 @@ server {
 
     location ${URL_PREFIX}/static/ {
         alias /app/bublik/bublik/representation/static/;
+    }
+
+    location ${URL_PREFIX}/static_te_html/ {
+        alias /app/te-logs-static/;
     }
 }

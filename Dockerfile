@@ -113,42 +113,43 @@ RUN apt-get update && apt-get install -y \
 
 RUN a2enmod cgid
 
-# Create necessary directories
 RUN mkdir -p \
     /home/te-logs/cgi-bin \
     /home/te-logs/logs \
     /home/te-logs/incoming \
     /home/te-logs/bad \
-    /app/bublik
+    /home/te-logs/bin \
+    /app/bublik \
+    /app/te-templates \
+    && chmod -R 775 /home/te-logs/logs \
+    && chmod -R 775 /home/te-logs/incoming \
+    && chmod -R 775 /home/te-logs/bad
 
-# Copy entrypoint scripts
 COPY ./entrypoint-common.sh /app/bublik/entrypoint-common.sh
 COPY ./entrypoint-logserver.sh /app/bublik/entrypoint-logserver.sh
 RUN chmod +x /app/bublik/entrypoint-*.sh
 
-COPY ./test-environment/tools/log_server/te-logs-error404.template /home/te-logs/cgi-bin/te-logs-error404
-COPY ./test-environment/tools/log_server/te-logs-index.template /home/te-logs/cgi-bin/te-logs-index
-COPY ./test-environment/tools/log_server/publish-logs-unpack.sh /home/te-logs/bin/
-COPY ./test-environment/tools/log_server/publish-incoming-logs.template /home/te-logs/bin/publish-incoming-logs
+COPY ./test-environment/tools/log_server/te-logs-error404.template /app/te-templates/
+COPY ./test-environment/tools/log_server/te-logs-index.template /app/te-templates/
+COPY ./test-environment/tools/log_server/publish-logs-unpack.sh /app/te-templates/
+COPY ./test-environment/tools/log_server/publish-incoming-logs.template /app/te-templates/
+COPY ./test-environment/tools/log_server/apache2-te-log-server.conf.template /app/te-templates/
 
-RUN chmod 750 /home/te-logs/cgi-bin/* /home/te-logs/bin/* \
-    && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
-    && chmod -R 775 /home/te-logs/logs
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
-COPY ./test-environment/tools/log_server/apache2-te-log-server.conf.template /etc/apache2/conf-available/te-logs.conf
-
-RUN a2enconf te-logs
-
-# Configure Apache to log to stdout/stderr
 RUN ln -sf /proc/self/fd/1 /var/log/apache2/access.log && \
     ln -sf /proc/self/fd/2 /var/log/apache2/error.log
 
-# Update Apache configuration to use combined log format
 RUN sed -i \
     -e 's|ErrorLog ${APACHE_LOG_DIR}/error.log|ErrorLog /proc/self/fd/2|' \
     -e 's|CustomLog ${APACHE_LOG_DIR}/access.log combined|CustomLog /proc/self/fd/1 combined|' \
     /etc/apache2/apache2.conf
 
-EXPOSE 80
+RUN mkdir -p /app/te-logs-static && \
+    cd /app/te/build/inst/default/share/rgt-format/xml2html-multi && \
+    cp -r /app/te/build/inst/default/share/rgt-format/xml2html-multi/images /app/te-logs-static/ && \
+    find . -type f -not -path "./images/*" -exec cp {} /app/te-logs-static/ \; && \
+    chmod -R 755 /app/te-logs-static
 
+EXPOSE ${BUBLIK_DOCKER_TE_LOG_SERVER_PORT}
 ENTRYPOINT ["/app/bublik/entrypoint-logserver.sh"]
