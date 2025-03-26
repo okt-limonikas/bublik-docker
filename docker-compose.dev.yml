@@ -1,6 +1,5 @@
 services:
   django:
-    container_name: django
     build:
       context: .
       dockerfile: Dockerfile
@@ -79,7 +78,6 @@ services:
           action: rebuild
 
   db:
-    container_name: postgres
     image: postgres
     environment:
       POSTGRES_DB: bublik
@@ -91,7 +89,6 @@ services:
       - ${DB_PORT}:5432
 
   redis:
-    container_name: redis
     image: redis
     expose:
       - ${REDIS_PORT}
@@ -99,7 +96,6 @@ services:
       - ${REDIS_PORT}:6379
 
   rabbitmq:
-    container_name: rabbitmq
     image: rabbitmq:3-management
     expose:
       - ${RABBITMQ_PORT}
@@ -108,7 +104,6 @@ services:
       - 15672:15672
 
   celery:
-    container_name: celery
     network_mode: host
     build:
       context: .
@@ -177,7 +172,6 @@ services:
           action: rebuild
 
   flower:
-    container_name: flower
     network_mode: host
     build:
       context: .
@@ -243,7 +237,6 @@ services:
           action: rebuild
 
   nginx:
-    container_name: nginx
     network_mode: host
     build:
       context: .
@@ -268,7 +261,6 @@ services:
       - bublik-ui
 
   bublik-ui:
-    container_name: bublik-ui
     network_mode: host
     build:
       context: ./bublik-ui
@@ -289,7 +281,6 @@ services:
 
   mailpit:
     image: axllent/mailpit
-    container_name: mailpit
     network_mode: host
     restart: unless-stopped
     ## ports:
@@ -299,7 +290,6 @@ services:
       - MP_SMTP_TLS_REQUIRED=${MP_SMTP_TLS_REQUIRED:-false}
 
   te-log-server:
-    container_name: te-log-server
     network_mode: host
     build:
       context: .
