@@ -196,17 +196,24 @@ tasks:
     cmds:
       - docker compose -f docker-compose.dev.yml down
 
-  import-log:
+  logs:import-log:
     desc: Import logs from a specified .tar file
+    aliases: [import]
     summary: |
       Import logs from a specified .tar file
-      Usage: task import-logs -- ./path/to/file.tar
-      Warning: task import-logs -- /path/to/file.tar Does not work with localhost
+      Usage: task logs:import-log -- ./path/to/file.tar
     silent: true
     vars:
       FILE: "{{.CLI_ARGS}}"
     cmds:
       - ./scripts/import_logs.sh {{.FILE}}
+  
+  logs:publish-incoming-logs:
+    desc: Publish logs from incoming directory
+    aliases: [publish]
+    silent: true
+    cmds:
+      - ./scripts/publish_incoming_logs.sh
 
   docker:nuke:
     prompt: |
