@@ -9,4 +9,4 @@
 	url = https://github.com/ts-factory/test-environment.git
 [submodule "bublik"]
 	path = bublik
-	url = https://github.com/ts-factory/bublik.git
+	url = https://github.com/okt-limonikas/bublik.git
