@@ -102,6 +102,8 @@ create_config() {
 
   echo "📝 Creating $type config '$name' from $file..."
 
+  escaped_content=$(echo "$content" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+
   response=$(curl -s "$API_URL/api/v2/config/" \
     -H 'Content-Type: application/json' \
     -b ./tmp/cookies.txt \
@@ -110,7 +112,8 @@ create_config() {
       \"name\": \"$name\",
       \"description\": \"$name Configuration\",
       \"is_active\": true,
-      \"content\": $content
+      \"content\": \"$escaped_content\",
+      \"project\"\: \"ts-factory\"
     }")
 
   if echo "$response" | grep -q "id"; then
@@ -137,4 +140,4 @@ for i in "${!config_names[@]}"; do
   create_config "$type" "$name" "$file"
 done
 
-echo "✅ All configs processed successfully!" 
+echo "✅ All configs processed successfully!"
