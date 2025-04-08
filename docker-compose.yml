@@ -255,9 +255,9 @@ services:
       - URL_PREFIX=${URL_PREFIX}
     network_mode: host
     volumes:
-      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs:/home/te-logs/logs:rw
-      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming:/home/te-logs/incoming:rw
-      - ${BUBLIK_DOCKER_DATA_DIR}/te-logs/bad:/home/te-logs/bad:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/logs/logs:/home/te-logs/logs:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/logs/incoming:/home/te-logs/incoming:rw
+      - ${BUBLIK_DOCKER_DATA_DIR}/logs/bad:/home/te-logs/bad:rw
       - static_te_html:/app/te-logs-static
     restart: unless-stopped
 
