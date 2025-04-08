@@ -156,6 +156,24 @@ tasks:
       - docker compose -f docker-compose.dev.yml up --build -d
       - echo "🚀 Development environment started at {{.API_URL}}"
 
+  docker:dev:start:
+    desc: Start development environment
+    deps: [docker:setup]
+    aliases: [dev:start]
+    silent: true
+    cmds:
+      - docker compose -f docker-compose.dev.yml start
+      - echo "🚀 Development environment started at {{.API_URL}}"
+
+  docker:start:
+    desc: Start production environment
+    deps: [docker:setup]
+    aliases: [start]
+    silent: true
+    cmds:
+      - docker compose -f docker-compose.yml start
+      - echo "🚀 Development environment started at {{.API_URL}}"
+
   docker:up:
     desc: Start production environment
     summary: |
