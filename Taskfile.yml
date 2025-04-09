@@ -4,6 +4,8 @@ dotenv:
   - .env
 
 vars:
+  DJANGO_CONTAINER_ID:
+    sh: docker ps -q --filter "name=django"
   API_URL:
     sh: |
       fqdn="{{.BUBLIK_FQDN}}"
@@ -219,6 +221,18 @@ tasks:
     aliases: [dev:down]
     cmds:
       - docker compose -f docker-compose.dev.yml down
+
+  management:shell:
+    desc: Launch a bash shell inside the Django container for interactive management
+    aliases: [shell]
+    cmd: docker exec -it {{ .DJANGO_CONTAINER_ID }} bash
+
+  management:delete-run:
+    desc: Delete a test run from the database by providing its ID
+    aliases: [delete-run]
+    vars:
+      ID: "{{.CLI_ARGS}}"
+    cmd: docker exec -it {{ .DJANGO_CONTAINER_ID }} bash -c 'python manage.py delete_run -i {{ .ID }}'
 
   logs:import-log:
     desc: Import logs from a specified .tar file
