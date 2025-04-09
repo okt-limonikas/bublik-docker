@@ -246,6 +246,20 @@ tasks:
     cmds:
       - ./scripts/import_logs.sh {{.FILE}}
 
+  logs:import-log-remote:
+    desc: Import log from remote URL
+    aliases: [import-remote]
+    vars:
+      URL: "{{.CLI_ARGS}}"
+    cmd: curl http://localhost/api/v2/importruns/source/?url={{.URL}}
+
+  logs:import-via-command:
+    desc: Import log from remote URL
+    aliases: [import-command]
+    vars:
+      URL: "{{.CLI_ARGS}}"
+    cmd: docker exec -it {{ .DJANGO_CONTAINER_ID }} bash -c 'python manage.py importruns {{ .URL }}'
+
   logs:publish-incoming-logs:
     desc: Publish logs from incoming directory
     aliases: [publish]
