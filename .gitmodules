@@ -3,10 +3,10 @@
 	url = https://github.com/ts-factory/bublik-release.git
 [submodule "bublik-ui"]
 	path = bublik-ui
-	url = https://github.com/ts-factory/bublik-ui.git
+	url = https://github.com/okt-limonikas/bublik-ui.git
 [submodule "test-environment"]
 	path = test-environment
 	url = https://github.com/ts-factory/test-environment.git
 [submodule "bublik"]
 	path = bublik
-	url = https://github.com/ts-factory/bublik.git
+	url = https://github.com/okt-limonikas/bublik.git
