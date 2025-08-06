@@ -23,9 +23,6 @@ python manage.py migrate
 echo "Initialize configs"
 python manage.py initialize_configs
 
-echo "Reformat Configs"
-python manage.py reformat_configs
-
 echo "Creating Superuser"
 python manage.py shell << EOF
 from django.contrib.auth import get_user_model
