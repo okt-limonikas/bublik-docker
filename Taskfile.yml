@@ -344,25 +344,17 @@ tasks:
       - task: docker:up
       - cmd: echo "Waiting for 15 seconds for services to start..." && sleep 15
       - task: bootstrap:init-configs
-      - task: print-env-info
+      - task: status
 
   migrations:transition_1.8.0_to_1.9.0:
     desc: Handle migrations when updating to version 1.9.0 and higher from 1.8.0 and lower
     cmds:
       - ./scripts/create_migrations.sh
 
-  print-env-info:
-    desc: Print environment information
+  status:
+    desc: Print current status and info
     silent: true
-    cmds:
-      - |
-        echo "🔑 Admin credentials:"
-        echo "  Email: {{.DJANGO_SUPERUSER_EMAIL}}"
-        echo "  Password: {{.DJANGO_SUPERUSER_PASSWORD}}"
-        echo "🔑 Data directory:"
-        echo "  {{.BUBLIK_DOCKER_DATA_DIR}}"
-        echo "🔑 INSTANCE URL:"
-        echo "  {{.API_URL}}"
+    cmd: ./scripts/status.sh
 
   bootstrap:import-sessions:
     desc: Import Test Sessions from specified file
