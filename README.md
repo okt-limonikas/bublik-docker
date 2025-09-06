@@ -12,3 +12,7 @@ The Bublik Docker setup documentation is available in two locations:
    For example: `https://ts-factory.io/bublik/docs/`
 
 This documentation covers installation, configuration, usage guidelines and troubleshooting information.
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/okt-limonikas/bublik-docker/install-script/scripts/install.sh)
+```
