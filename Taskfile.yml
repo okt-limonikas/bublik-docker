@@ -183,6 +183,18 @@ tasks:
     aliases: [up]
     silent: true
     cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.db.yml up --force-recreate -d
+      - echo "🚀 Production environment started at {{.API_URL}}"
+
+  docker:up:with-external-db:
+    desc: Start production environment
+    summary: |
+      Start production environment with externally deployed database
+      Environment will be accessible at BUBLIK_FQDN
+    deps: [docker:setup]
+    aliases: [up:with-external-db]
+    silent: true
+    cmds:
       - docker compose -f docker-compose.yml up --force-recreate -d
       - echo "🚀 Production environment started at {{.API_URL}}"
 
@@ -211,7 +223,7 @@ tasks:
     summary: Stop and remove production containers while preserving data
     aliases: [down]
     cmds:
-      - docker compose -f docker-compose.yml down
+      - docker compose -f docker-compose.yml -f docker-compose.db.yml down
 
   docker:dev:down:
     desc: Stop Docker development environment
