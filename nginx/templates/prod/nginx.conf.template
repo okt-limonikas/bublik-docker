@@ -1,13 +1,13 @@
 upstream django {
-    server localhost:${BUBLIK_DOCKER_DJANGO_PORT};
+    server 127.0.0.1:${BUBLIK_DOCKER_DJANGO_PORT};
 }
 
 upstream flower {
-    server localhost:${FLOWER_PORT};
+    server 127.0.0.1:${FLOWER_PORT};
 }
 
 upstream te-log-server {
-    server localhost:${BUBLIK_DOCKER_TE_LOG_SERVER_PORT};
+    server 127.0.0.1:${BUBLIK_DOCKER_TE_LOG_SERVER_PORT};
 }
 
 map $http_upgrade $connection_upgrade {
