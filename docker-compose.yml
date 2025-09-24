@@ -81,7 +81,7 @@ services:
       start_period: 10s
 
   db:
-    image: postgres
+    image: postgres:17
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME}
@@ -99,7 +99,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis
+    image: redis:8
     restart: unless-stopped
     volumes:
       - redis_data:/data
@@ -109,7 +109,7 @@ services:
       - ${REDIS_PORT}:6379
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:4-management
     ports:
       - ${RABBITMQ_PORT}:5672
     restart: unless-stopped
