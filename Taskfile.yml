@@ -306,12 +306,8 @@ tasks:
   ###########################################
   meta-categorization:
     desc: Trigger meta-categorization process
-    summary: |
-      Start the meta-categorization process for test results
-      Connects to API_URL endpoint
-    silent: true
-    cmds:
-      - ./scripts/meta_categorization.sh "{{.API_URL}}"
+    summary: Start the meta-categorization process for test results
+    cmd: docker compose exec -it django bash -c 'python manage.py meta_categorization'
 
   ###########################################
   #         Bootstrap                       #
