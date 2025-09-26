@@ -1,21 +1,21 @@
 upstream django {
-    server 127.0.0.1:${BUBLIK_DOCKER_DJANGO_PORT};
+    server django:${BUBLIK_DOCKER_DJANGO_PORT};
 }
 
 upstream flower {
-    server 127.0.0.1:${FLOWER_PORT};
+    server flower:${FLOWER_PORT};
 }
 
 upstream bublik-ui {
-    server 127.0.0.1:${BUBLIK_DOCKER_BUBLIK_UI_PORT};
+    server bublik-ui:${BUBLIK_DOCKER_BUBLIK_UI_PORT};
 }
 
 upstream bublik-docs {
-    server 127.0.0.1:${BUBLIK_DOCKER_DOCS_PORT};
+    server bublik-docs:${BUBLIK_DOCKER_DOCS_PORT};
 }
 
 upstream te-log-server {
-    server 127.0.0.1:${BUBLIK_DOCKER_TE_LOG_SERVER_PORT};
+    server te-log-server:${BUBLIK_DOCKER_TE_LOG_SERVER_PORT};
 }
 
 map $http_upgrade $connection_upgrade {

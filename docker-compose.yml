@@ -1,6 +1,5 @@
 services:
   django:
-    network_mode: host
     image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-ts-factory}/${RUNNER_IMAGE_NAME:-bublik-runner}:${IMAGE_TAG:-latest}
     restart: unless-stopped
     command: >
@@ -72,7 +71,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --fail http://localhost:${BUBLIK_DOCKER_DJANGO_PORT}${URL_PREFIX}/api/v2/ || exit 1",
+          "curl --fail http://127.0.0.1:${BUBLIK_DOCKER_DJANGO_PORT}${URL_PREFIX}/api/v2/ || exit 1",
         ]
       interval: 30s
       timeout: 10s
@@ -86,13 +85,9 @@ services:
       - redis_data:/data
     expose:
       - ${REDIS_PORT}
-    ports:
-      - ${REDIS_PORT}:6379
 
   rabbitmq:
     image: rabbitmq:4-management
-    ports:
-      - ${RABBITMQ_PORT}:5672
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "rabbitmqctl status || exit 1"]
@@ -146,7 +141,6 @@ services:
       - HOST_GID=${HOST_GID:-1000}
       - UMASK=${UMASK:-022}
     entrypoint: /app/bublik/entrypoint-celery.sh
-    network_mode: host
     depends_on:
       - redis
       - rabbitmq
@@ -161,7 +155,6 @@ services:
 
   flower:
     image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-ts-factory}/${RUNNER_IMAGE_NAME:-bublik-runner}:${IMAGE_TAG:-latest}
-    network_mode: host
     command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX} --port=${FLOWER_PORT}
     restart: unless-stopped
     environment:
@@ -213,7 +206,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --fail http://localhost:${FLOWER_PORT}/${FLOWER_URL_PREFIX}/ || exit 1",
+          "curl --fail http://127.0.0.1:${FLOWER_PORT}/${FLOWER_URL_PREFIX}/ || exit 1",
         ]
       interval: 30s
       timeout: 10s
@@ -232,7 +225,6 @@ services:
       - BUBLIK_FQDN=${BUBLIK_FQDN}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - URL_PREFIX=${URL_PREFIX}
-    network_mode: host
     volumes:
       - ${BUBLIK_DOCKER_DATA_DIR}/logs/logs:/home/te-logs/logs:rw
       - ${BUBLIK_DOCKER_DATA_DIR}/logs/incoming:/home/te-logs/incoming:rw
@@ -253,9 +245,8 @@ services:
       - FLOWER_PORT=${FLOWER_PORT}
       - BUBLIK_DOCKER_TE_LOG_SERVER_PORT=${BUBLIK_DOCKER_TE_LOG_SERVER_PORT}
       - BUBLIK_DOCKER_DJANGO_PORT=${BUBLIK_DOCKER_DJANGO_PORT}
-    expose:
-      - ${BUBLIK_DOCKER_PROXY_PORT}
-    network_mode: host
+    ports:
+      - ${BUBLIK_DOCKER_PROXY_PORT}:${BUBLIK_DOCKER_PROXY_PORT}
     volumes:
       - ./nginx/templates/prod:/etc/nginx/templates:ro
       - static_data:/app/bublik/bublik/representation/static
@@ -267,7 +258,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --fail http://localhost:${BUBLIK_DOCKER_PROXY_PORT}${URL_PREFIX}/v2/ || exit 1",
+          "curl --fail http://127.0.0.1:${BUBLIK_DOCKER_PROXY_PORT}${URL_PREFIX}/v2/ || exit 1",
         ]
       interval: 30s
       timeout: 10s

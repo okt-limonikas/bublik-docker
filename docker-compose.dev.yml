@@ -10,7 +10,6 @@ services:
         - DOCS_URL=${DOCS_URL}
     command: python manage.py runserver ${BUBLIK_DOCKER_DJANGO_HOST}:${BUBLIK_DOCKER_DJANGO_PORT}
     entrypoint: ./entrypoint-django.sh
-    network_mode: host
     environment:
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
       - PER_CONF_DIR=${PER_CONF_DIR}
@@ -93,23 +92,18 @@ services:
   redis:
     container_name: ${COMPOSE_PROJECT_NAME}-redis
     image: redis
-    expose:
-      - ${REDIS_PORT}
     ports:
       - ${REDIS_PORT}:6379
 
   rabbitmq:
     container_name: ${COMPOSE_PROJECT_NAME}-rabbitmq
     image: rabbitmq:3-management
-    expose:
-      - ${RABBITMQ_PORT}
     ports:
       - ${RABBITMQ_PORT}:5672
       - 15672:15672
 
   celery:
     container_name: ${COMPOSE_PROJECT_NAME}-celery
-    network_mode: host
     build:
       context: .
       dockerfile: Dockerfile
@@ -178,7 +172,6 @@ services:
 
   flower:
     container_name: ${COMPOSE_PROJECT_NAME}-flower
-    network_mode: host
     build:
       context: .
       dockerfile: Dockerfile
@@ -244,7 +237,6 @@ services:
 
   nginx:
     container_name: ${COMPOSE_PROJECT_NAME}-nginx
-    network_mode: host
     build:
       context: .
       dockerfile: ./nginx/Dockerfile
@@ -264,6 +256,8 @@ services:
       - BUBLIK_DOCKER_BUBLIK_UI_PORT=${BUBLIK_DOCKER_BUBLIK_UI_PORT}
       - BUBLIK_DOCKER_DOCS_PORT=${BUBLIK_DOCKER_DOCS_PORT}
       - FLOWER_PORT=${FLOWER_PORT}
+    ports:
+      - ${BUBLIK_DOCKER_PROXY_PORT}:${BUBLIK_DOCKER_PROXY_PORT}
     depends_on:
       - django
       - flower
@@ -271,14 +265,13 @@ services:
 
   bublik-ui:
     container_name: ${COMPOSE_PROJECT_NAME}-bublik-ui
-    network_mode: host
     build:
       context: ./bublik-ui
       dockerfile: ./apps/bublik/Dockerfile.dev
     environment:
       - BASE_URL=${URL_PREFIX}/v2
-    ## ports:
-    ##  - ${BUBLIK_DOCKER_BUBLIK_UI_PORT}:4200
+    ports:
+      - ${BUBLIK_DOCKER_BUBLIK_UI_PORT}:4200
     develop:
       watch:
         - action: sync
@@ -291,17 +284,18 @@ services:
 
   bublik-docs:
     container_name: ${COMPOSE_PROJECT_NAME}-bublik-docs
-    network_mode: host
     command: pnpm run start
     build:
       dockerfile: Dockerfile
       target: docs-base
       args:
         - URL_PREFIX=${URL_PREFIX}
-        - DOCS_URL=${DOCS_URL:-http://localhost}
+        - DOCS_URL=${DOCS_URL:-http://127.0.0.1}
     environment:
       - BASE_URL=${URL_PREFIX}/docs
       - BUBLIK_DOCKER_DOCS_PORT=${BUBLIK_DOCKER_DOCS_PORT:-3000}
+    ports:
+      - ${BUBLIK_DOCKER_DOCS_PORT:-3000}:${BUBLIK_DOCKER_DOCS_PORT:-3000}
     develop:
       watch:
         - action: sync
@@ -315,17 +309,15 @@ services:
   mailpit:
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     image: axllent/mailpit
-    network_mode: host
     restart: unless-stopped
-    ## ports:
-    ##   - 8025:8025
-    ##   - 1025:1025
+    ports:
+      - 8025:8025
+      - 1025:1025
     environment:
       - MP_SMTP_TLS_REQUIRED=${MP_SMTP_TLS_REQUIRED:-false}
 
   te-log-server:
     container_name: ${COMPOSE_PROJECT_NAME}-te-log-server
-    network_mode: host
     build:
       context: .
       dockerfile: Dockerfile
