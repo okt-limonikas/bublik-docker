@@ -38,3 +38,4 @@ backups/
 
 # Docker data
 data/
+ansible/inventory/inventory.yml

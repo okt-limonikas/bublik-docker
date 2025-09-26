@@ -1,0 +1,114 @@
+---
+- name: Create the new user
+  user:
+    name: "{{ bublik_user }}"
+    state: present
+    create_home: yes
+    shell: /bin/bash
+
+- name: Ensure .ssh directory exists for bublik_user
+  file:
+    path: "/home/{{ bublik_user }}/.ssh"
+    state: directory
+    owner: "{{ bublik_user }}"
+    group: "{{ bublik_user }}"
+    mode: "0700"
+
+- name: Add SSH public key to bublik_user
+  authorized_key:
+    user: "{{ bublik_user }}"
+    key: "{{ lookup('file', ssh_public_key_path) }}"
+    state: present
+
+- name: Allow bublik_user passwordless sudo
+  copy:
+    dest: "/etc/sudoers.d/{{ bublik_user }}"
+    content: "{{ bublik_user }} ALL=(ALL) NOPASSWD:ALL"
+    owner: root
+    group: root
+    mode: "0440"
+
+- name: Install additional packages
+  apt:
+    name: "{{ additional_packages }}"
+    state: present
+    update_cache: yes
+
+- name: Ensure Task is installed
+  stat:
+    path: /usr/local/bin/task
+  register: task_bin
+
+- name: Install Task
+  shell: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+  when: not task_bin.stat.exists
+
+- name: Ensure yq is installed
+  stat:
+    path: /usr/local/bin/yq
+  register: yq_bin
+
+- name: Download yq
+  get_url:
+    url: "https://github.com/mikefarah/yq/releases/download/v4.47.2/{{ 'yq_linux_amd64' if ansible_architecture == 'x86_64' else 'yq_linux_arm64' }}"
+    dest: /usr/local/bin/yq
+    mode: "0755"
+  when: not yq_bin.stat.exists
+
+- name: Install Docker using geerlingguy.docker role
+  include_role:
+    name: geerlingguy.docker
+  vars:
+    docker_install_compose_plugin: true
+    docker_compose_package: docker-compose-plugin
+    docker_users:
+      - "{{ ansible_user }}"
+      - "{{ bublik_user }}"
+
+- name: Configure Docker daemon.json
+  copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+      }
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Restart Docker
+  systemd:
+    name: docker
+    state: restarted
+    enabled: yes
+
+- name: Create Traefik network
+  community.docker.docker_network:
+    name: "{{ traefik_network }}"
+    driver: bridge
+
+- name: Create Traefik directory
+  file:
+    path: /opt/traefik
+    state: directory
+    mode: "0755"
+    owner: "{{ bublik_user }}"
+    group: "{{ bublik_user }}"
+
+- name: Create Bootstrap Directory
+  file:
+    path: /opt/bootstrap
+    state: directory
+    mode: "0755"
+    owner: "{{ bublik_user }}"
+    group: "{{ bublik_user }}"
+
+- name: Copy Traefik docker-compose file
+  template:
+    src: docker-compose.traefik.yml.j2
+    dest: /opt/traefik/docker-compose.yml
+
+- name: Start Traefik with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: /opt/traefik
+    state: present

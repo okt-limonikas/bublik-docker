@@ -1,0 +1,227 @@
+---
+- name: Create environments directory
+  file:
+    path: "/opt/environments"
+    state: directory
+    mode: "0755"
+    owner: "{{ bublik_user }}"
+    group: "{{ bublik_user }}"
+  become: true
+
+- name: Create environment directory
+  file:
+    path: "/opt/environments/{{ environment_name }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ bublik_user }}"
+    group: "{{ bublik_user }}"
+  become_user: "{{ bublik_user }}"
+
+- name: Remove existing bublik-docker directory if it exists
+  file:
+    path: "/opt/environments/{{ environment_name }}/bublik-docker"
+    state: absent
+  become: true
+
+- name: Clone main bublik-docker repository
+  git:
+    repo: "{{ docker_repo }}"
+    dest: "/opt/environments/{{ environment_name }}/bublik-docker"
+    version: "{{ docker_branch }}"
+    force: yes
+    update: yes
+  become_user: "{{ bublik_user }}"
+
+- name: Initialize and update submodules
+  args:
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  shell: |
+    git submodule init
+    git submodule update --recursive
+  become_user: "{{ bublik_user }}"
+
+- name: Checkout frontend submodule to PR branch
+  args:
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker/bublik-ui
+  shell: |
+    git remote set-url origin {{ frontend_repo }}
+    git fetch origin
+    git checkout {{ frontend_branch }}
+    git reset --hard origin/{{ frontend_branch }}
+  become_user: "{{ bublik_user }}"
+
+- name: Checkout backend submodule to PR branch
+  args:
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker/bublik
+  shell: |
+    git remote set-url origin {{ backend_repo }}
+    git fetch origin
+    git checkout {{ backend_branch }}
+    git reset --hard origin/{{ backend_branch }}
+  become_user: "{{ bublik_user }}"
+
+- name: Setup .env file and django settings files
+  args:
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  shell: task setup
+  become_user: "{{ bublik_user }}"
+
+- name: Generate random SECRET_KEY
+  set_fact:
+    secret_key: "{{ lookup('ansible.builtin.pipe', 'openssl rand -base64 50 | tr -d \"/+=\\n\"') }}"
+  no_log: true
+
+- name: Preprocess .env file - adjust variables for PR preview
+  lineinfile:
+    path: "/opt/environments/{{ environment_name }}/bublik-docker/.env"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+  loop:
+    - { key: "COMPOSE_PROJECT_NAME", value: "{{ environment_name }}" }
+    - { key: "IMAGE_TAG", value: "{{ environment_name }}" }
+    - { key: "SECRET_KEY", value: "{{ secret_key }}" }
+    - { key: "BUBLIK_FQDN", value: "https://{{ environment_domain }}" }
+    - { key: "SECURE_HTTP", value: "True" }
+    - { key: "DJANGO_SUPERUSER_EMAIL", value: "{{ django_superuser_email }}" }
+    - { key: "DB_HOST", value: "db" }
+    - { key: "REDIS_HOST", value: "redis" }
+    - { key: "RABBITMQ_HOST", value: "rabbitmq" }
+    - { key: "FLOWER_HOST", value: "flower" }
+    - { key: "BUBLIK_DOCKER_DJANGO_HOST_PROXY", value: "django" }
+    - {
+        key: "DJANGO_SUPERUSER_PASSWORD",
+        value: "{{ django_superuser_password }}",
+      }
+  no_log: true
+  become_user: "{{ bublik_user }}"
+
+- name: Read BUBLIK_DOCKER_PROXY_PORT from .env file
+  ansible.builtin.slurp:
+    src: /opt/environments/{{ environment_name }}/bublik-docker/.env
+  register: env_file
+  failed_when: env_file.content | b64decode is not regex('BUBLIK_DOCKER_PROXY_PORT=\d+')
+
+- name: Extract nginx_port from .env file
+  ansible.builtin.set_fact:
+    nginx_port: "{{ (env_file.content | b64decode | regex_search('BUBLIK_DOCKER_PROXY_PORT=(\\d+)', '\\1'))[0] }}"
+  failed_when: nginx_port is not defined or nginx_port | int <= 0
+
+- name: Add Traefik labels and networks to nginx service
+  args:
+    executable: /bin/bash
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  become_user: "{{ bublik_user }}"
+  shell: |
+    yq eval -i '
+      .services.nginx.labels = [
+        "traefik.enable=true",
+        "traefik.docker.network={{ traefik_network }}",
+        "traefik.http.routers.bublik-nginx-{{ environment_name }}.rule=Host(`{{ environment_domain }}`)",
+        "traefik.http.routers.bublik-nginx-{{ environment_name }}.entrypoints=web,websecure",
+        "traefik.http.routers.bublik-nginx-{{ environment_name }}.tls=true",
+        "traefik.http.routers.bublik-nginx-{{ environment_name }}.tls.certresolver=letsencrypt",
+        "traefik.http.services.bublik-nginx-{{ environment_name }}.loadbalancer.server.port={{ nginx_port }}"
+      ] |
+      .services.nginx.networks = ["default", "{{ traefik_network }}"] |
+      .networks.{{ traefik_network }} = {"external": true}
+    ' docker-compose.yml
+
+- name: Remove ports from all services
+  args:
+    executable: /bin/bash
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  become_user: "{{ bublik_user }}"
+  shell: |
+    yq eval -i '.services |= with_entries(.value |= del(.ports))' {{ item }}
+    yq eval -i '.services |= with_entries(.value |= del(.network_mode))' {{ item }}
+  loop:
+    - docker-compose.yml
+    - docker-compose.db.yml
+
+- name: Build Bublik
+  args:
+    executable: /bin/bash
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  shell: task build
+
+- name: Stop Bublik
+  community.docker.docker_compose_v2:
+    project_src: /opt/environments/{{ environment_name }}/bublik-docker
+    state: absent
+    remove_volumes: true
+    files:
+      - docker-compose.yml
+      - docker-compose.db.yml
+  when: run_bootstrap is defined and run_bootstrap == "true"
+
+- name: Start Bublik DB
+  community.docker.docker_compose_v2:
+    project_src: /opt/environments/{{ environment_name }}/bublik-docker
+    state: present
+    recreate: "always"
+    files:
+      - docker-compose.db.yml
+
+- name: Check if production environment exists
+  stat:
+    path: /opt/environments/production/bublik-docker
+  register: production_dir
+  when: run_bootstrap is defined and run_bootstrap == "true"
+
+- name: Check if production docker compose is running
+  shell: docker compose ps --services --filter "status=running" | wc -l
+  args:
+    chdir: /opt/environments/production/bublik-docker
+  register: production_compose_running
+  when:
+    - run_bootstrap is defined and run_bootstrap == "true"
+    - production_dir.stat.exists
+  changed_when: false
+  failed_when: false
+
+- name: Create Production DB Backup
+  args:
+    chdir: /opt/environments/production/bublik-docker
+  shell: docker compose exec -T db pg_dump -U bublik -d bublik | gzip > /opt/bootstrap/bublik-bootstrap-db.sql.gz
+  become: true
+  when:
+    - run_bootstrap is defined and run_bootstrap == "true"
+    - production_dir.stat.exists
+    - production_compose_running.stdout | int > 0
+
+- name: Restore backup into staging database
+  shell: zcat /opt/bootstrap/bublik-bootstrap-db.sql.gz | docker compose exec -T db psql -U {{ db_user | default('bublik') }} -d {{ db_name | default('bublik') }}
+  args:
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  when:
+    - run_bootstrap is defined and run_bootstrap == "true"
+    - production_dir.stat.exists
+    - production_compose_running.stdout | int > 0
+
+- name: Start Bublik
+  community.docker.docker_compose_v2:
+    project_src: /opt/environments/{{ environment_name }}/bublik-docker
+    state: present
+    build: "always"
+    recreate: "always"
+    files:
+      - docker-compose.yml
+      - docker-compose.db.yml
+
+- name: Upgrade Configs
+  args:
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  shell: docker compose exec -it django python manage.py reformat_configs
+  when:
+    - run_bootstrap is defined and run_bootstrap == "true"
+
+- name: Run Meta Categorization Task
+  args:
+    chdir: /opt/environments/{{ environment_name }}/bublik-docker
+  shell: task meta-categorization
+  when:
+    - run_bootstrap is defined and run_bootstrap == "true"
+
+- name: Display preview URL
+  debug:
+    msg: "{{ environment_name }} is available at: https://{{ environment_domain }}"
