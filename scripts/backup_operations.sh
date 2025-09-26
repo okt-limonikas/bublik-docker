@@ -1,4 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+AUTO_CONFIRM=false
+ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+  -y | --yes)
+    AUTO_CONFIRM=true
+    ;;
+  *)
+    ARGS+=("$arg")
+    ;;
+  esac
+done
+
+set -- "${ARGS[@]}"
 
 get_container_name() {
   local service="$1"
@@ -24,14 +40,11 @@ create_backup() {
     exit 1
   fi
 
-  # Ensure backup directory exists
   mkdir -p "$backup_dir"
 
-  # Generate backup filename with timestamp
   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
   DB_BACKUP_FILE="$backup_dir/db_backup_${TIMESTAMP}.sql"
 
-  # Backup database
   echo "📝 Creating database backup..."
   if docker exec $POSTGRES_CONTAINER pg_dump \
     -U "$DB_USER" \
@@ -40,7 +53,7 @@ create_backup() {
     --if-exists \
     --no-owner \
     --no-privileges \
-    > "$DB_BACKUP_FILE"; then
+    >"$DB_BACKUP_FILE"; then
     echo "✅ Database backup created at: $DB_BACKUP_FILE"
     echo "📊 Backup size: $(du -h "$DB_BACKUP_FILE" | cut -f1)"
   else
@@ -49,15 +62,23 @@ create_backup() {
     exit 1
   fi
 
-  # Optionally create compressed version
-  read -p "Compress the backup file? [y/N] " compress_answer
+  if $AUTO_CONFIRM; then
+    compress_answer="y"
+  else
+    read -p "Compress the backup file? [y/N] " compress_answer
+  fi
+
   if [[ $compress_answer =~ ^[Yy]$ ]]; then
     COMPRESSED_FILE="${DB_BACKUP_FILE}.gz"
     echo "📝 Compressing backup..."
-    if gzip -c "$DB_BACKUP_FILE" > "$COMPRESSED_FILE"; then
+    if gzip -c "$DB_BACKUP_FILE" >"$COMPRESSED_FILE"; then
       echo "✅ Compressed backup created at: $COMPRESSED_FILE"
       echo "📊 Compressed size: $(du -h "$COMPRESSED_FILE" | cut -f1)"
-      read -p "Remove original uncompressed file? [y/N] " remove_answer
+      if $AUTO_CONFIRM; then
+        remove_answer="y"
+      else
+        read -p "Remove original uncompressed file? [y/N] " remove_answer
+      fi
       if [[ $remove_answer =~ ^[Yy]$ ]]; then
         rm -f "$DB_BACKUP_FILE"
         echo "✅ Original file removed"
@@ -79,7 +100,7 @@ restore_backup() {
 
   if [ -z "$backup_file" ]; then
     echo "❌ No backup file specified"
-    echo "Usage: $0 restore /path/to/backup.sql[.gz]"
+    echo "Usage: $0 restore [-y] /path/to/backup.sql[.gz]"
     exit 1
   fi
 
@@ -90,13 +111,15 @@ restore_backup() {
 
   echo "⚠️ This will overwrite the current database!"
   echo "📝 Restore from: $backup_file"
-  read -p "Continue? [y/N] " answer
-  if [[ ! $answer =~ ^[Yy]$ ]]; then
-    echo "⏭️ Restore cancelled"
-    exit 0
+
+  if ! $AUTO_CONFIRM; then
+    read -p "Continue? [y/N] " answer
+    if [[ ! $answer =~ ^[Yy]$ ]]; then
+      echo "⏭️ Restore cancelled"
+      exit 0
+    fi
   fi
 
-  # Check if file is compressed
   if [[ "$backup_file" == *.gz ]]; then
     echo "🔄 Restoring from compressed backup..."
     if gunzip -c "$backup_file" | docker exec -i $POSTGRES_CONTAINER psql \
@@ -137,22 +160,26 @@ list_backups() {
   fi
 }
 
-# Command line interface
+# CLI
 case "$1" in
-  "create")
-    create_backup "${2:-backups}"
-    ;;
-  "restore")
-    restore_backup "$2"
-    ;;
-  "list")
-    list_backups "${2:-backups}"
-    ;;
-  *)
-    echo "Usage: $0 {create|restore|list} [path]"
-    echo "  create [dir]     Create database backup (default dir: backups)"
-    echo "  restore <file>   Restore database from backup file"
-    echo "  list [dir]       List available backups (default dir: backups)"
-    exit 1
-    ;;
+"create")
+  shift
+  create_backup "${1:-backups}"
+  ;;
+"restore")
+  shift
+  restore_backup "$1"
+  ;;
+"list")
+  shift
+  list_backups "${1:-backups}"
+  ;;
+*)
+  echo "Usage: $0 [-y|--yes] {create|restore|list} [path]"
+  echo "  create [dir]     Create database backup (default dir: backups)"
+  echo "  restore <file>   Restore database from backup file"
+  echo "  list [dir]       List available backups (default dir: backups)"
+  echo "  -y, --yes        Skip confirmation prompts"
+  exit 1
+  ;;
 esac
