@@ -235,19 +235,14 @@ tasks:
   management:shell:
     desc: Launch a bash shell inside the Django container for interactive management
     aliases: [shell]
-    vars:
-      DJANGO_CONTAINER_ID:
-        sh: docker ps -q --filter "name=django"
-    cmd: docker exec -it {{ .DJANGO_CONTAINER_ID }} bash
+    cmd: docker compose exec -it django bash
 
   management:delete-run:
     desc: Delete a test run from the database by providing its ID
     aliases: [delete-run]
     vars:
       ID: "{{.CLI_ARGS}}"
-      DJANGO_CONTAINER_ID:
-        sh: docker ps -q --filter "name=django"
-    cmd: docker exec -it {{ .DJANGO_CONTAINER_ID }} bash -c 'python manage.py delete_run -i {{ .ID }}'
+    cmd: docker compose exec -it django bash -c 'python manage.py delete_run -i {{ .ID }}'
 
   logs:import-log:
     desc: Import logs from a specified .tar file
@@ -273,9 +268,7 @@ tasks:
     aliases: [import-command]
     vars:
       URL: "{{.CLI_ARGS}}"
-      DJANGO_CONTAINER_ID:
-        sh: docker ps -q --filter "name=django"
-    cmd: docker exec -it {{ .DJANGO_CONTAINER_ID }} bash -c 'python manage.py importruns {{ .URL }}'
+    cmd: docker compose exec -it django bash -c 'python manage.py importruns {{ .URL }}'
 
   logs:publish-incoming-logs:
     desc: Publish logs from incoming directory
