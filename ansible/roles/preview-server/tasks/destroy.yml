@@ -1,0 +1,35 @@
+- name: Check if repo directory exists
+  stat:
+    path: '/opt/environments/{{ environment_name }}/bublik-docker'
+  register: repo_dir_check
+
+- name: Check if compose files exist
+  stat:
+    path: '/opt/environments/{{ environment_name }}/bublik-docker/docker-compose.yml'
+  register: compose_file_check
+  when: repo_dir_check.stat.exists
+
+- name: Remove Compose Containers
+  community.docker.docker_compose_v2:
+    project_src: /opt/environments/{{ environment_name }}/bublik-docker
+    state: absent
+    files:
+      - docker-compose.yml
+      - docker-compose.db.yml
+    remove_volumes: true
+  become_user: '{{ bublik_user }}'
+  when:
+    - repo_dir_check.stat.exists
+    - compose_file_check.stat.exists | default(false)
+  ignore_errors: true
+
+- name: Delete Preview Directory
+  file:
+    path: '/opt/environments/{{ environment_name }}'
+    state: absent
+
+- name: Remove Proxy Domain
+  file:
+    path: '/opt/traefik/dynamic/{{ environment_name }}.yml'
+    state: absent
+  become_user: '{{ bublik_user }}'
