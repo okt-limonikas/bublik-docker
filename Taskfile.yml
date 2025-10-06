@@ -116,23 +116,41 @@ tasks:
         sh: id -g
     cmds:
       - |
-        if [ -f .env ]; then
-          # Create temporary file
-          tmp_env=$(mktemp)
+        OS_TYPE="$(uname -s)"
 
-          # Process existing .env file
+        if [ "$OS_TYPE" = "Darwin" ]; then
+          if dscl . -read /Groups/www-data PrimaryGroupID 2>/dev/null | grep -q PrimaryGroupID; then
+            GID_TO_USE=$(dscl . -read /Groups/www-data PrimaryGroupID | awk '{print $2}')
+          else
+            if dscl . -read /Groups/_www PrimaryGroupID 2>/dev/null | grep -q PrimaryGroupID; then
+              GID_TO_USE=$(dscl . -read /Groups/_www PrimaryGroupID | awk '{print $2}')
+              echo "ℹ️  Using macOS _www group (GID: $GID_TO_USE)"
+            else
+              echo "⚠️  Warning: Neither www-data nor _www group exists on this system"
+              echo "Using your primary group (GID: {{.HOST_GID}}) instead"
+              GID_TO_USE="{{.HOST_GID}}"
+            fi
+          fi
+        else
+          WWW_DATA_GID=$(getent group www-data 2>/dev/null | cut -d: -f3)
+          if [ -z "$WWW_DATA_GID" ]; then
+            echo "⚠️  Warning: www-data group does not exist on this system"
+            echo "Please create it with: sudo groupadd -g 33 www-data"
+            echo "Or add your user to an existing web server group"
+            exit 1
+          fi
+          GID_TO_USE="$WWW_DATA_GID"
+        fi
+
+        if [ -f .env ]; then
+          tmp_env=$(mktemp)
           while IFS= read -r line || [ -n "$line" ]; do
-            # Skip lines that set HOST_UID or HOST_GID
             if [[ ! "$line" =~ ^HOST_(UID|GID)= ]]; then
               echo "$line" >> "$tmp_env"
             fi
           done < .env
-
-          # Add HOST_UID and HOST_GID
           echo "HOST_UID={{.HOST_UID}}" >> "$tmp_env"
-          echo "HOST_GID={{.HOST_GID}}" >> "$tmp_env"
-
-          # Replace original .env with updated version
+          echo "HOST_GID=$GID_TO_USE" >> "$tmp_env"
           mv "$tmp_env" .env
         fi
 
