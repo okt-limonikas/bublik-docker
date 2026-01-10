@@ -2,6 +2,10 @@ upstream django {
     server ${BUBLIK_DOCKER_DJANGO_HOST_PROXY}:${BUBLIK_DOCKER_DJANGO_PORT};
 }
 
+upstream mcp {
+    server ${BUBLIK_DOCKER_MCP_HOST}:${BUBLIK_DOCKER_MCP_PORT};
+}
+
 upstream flower {
     server ${FLOWER_HOST}:${FLOWER_PORT};
 }
@@ -35,6 +39,21 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+    }
+
+    location ${URL_PREFIX}/mcp {
+        proxy_pass http://mcp/mcp;
+        proxy_set_header Host ${BUBLIK_DOCKER_MCP_HOST}:${BUBLIK_DOCKER_MCP_PORT};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_redirect off;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 86400;
     }
 
     location $URL_PREFIX/v2/ {

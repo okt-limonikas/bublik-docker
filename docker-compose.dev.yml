@@ -1,4 +1,85 @@
 services:
+  bublik-mcp:
+    container_name: ${COMPOSE_PROJECT_NAME}-bublik-mcp
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+        - DOCS_URL=${DOCS_URL}
+    command: python manage.py run_mcp_server --host ${BUBLIK_DOCKER_MCP_HOST} --port ${BUBLIK_DOCKER_MCP_PORT}
+    network_mode: host
+    environment:
+      - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
+      - PER_CONF_DIR=${PER_CONF_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@bublik.com}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-admin}
+      - URL_PREFIX=${URL_PREFIX}
+      - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_UI_DOCS_DIR=${BUBLIK_UI_DOCS_DIR}
+      - BUBLIK_SRC=${BUBLIK_SRC}
+      - TE_BASE=${TE_BASE}
+      - TMPDIR=${TMPDIR}
+      - SECURE_HTTP=${SECURE_HTTP:-False}
+      - ENABLE_JSON_LOGS_PROXY=${ENABLE_JSON_LOGS_PROXY:-True}
+      - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
+      - BUBLIK_LOG=${BUBLIK_LOG}
+      - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
+      - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - CELERY_APP=${CELERY_APP}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
+      - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
+      - CELERY_RESULT_SERIALIZER=${CELERY_RESULT_SERIALIZER}
+      - CELERY_CREATE_DIRS=${CELERY_CREATE_DIRS}
+      - CELERYD_MAX_TASKS_PER_CHILD=${CELERYD_MAX_TASKS_PER_CHILD}
+      - CELERY_LOG_LEVEL=${CELERY_LOG_LEVEL}
+      - FLOWER_PERSISTENT=${FLOWER_PERSISTENT}
+      - FLOWER_PORT=${FLOWER_PORT}
+      - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - BUBLIK_WORKERS=${BUBLIK_WORKERS}
+      - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
+      - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
+      - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
+      - EMAIL_ADMINS=${EMAIL_ADMINS}
+      - HOST_UID=${HOST_UID:-1000}
+      - BUBLIK_DOCKER_MCP_HOST=${BUBLIK_DOCKER_MCP_HOST:-127.0.0.1}
+      - BUBLIK_DOCKER_MCP_PORT=${BUBLIK_DOCKER_MCP_PORT:-8001}
+      - HOST_GID=${HOST_GID:-1000}
+      - UMASK=${UMASK:-022}
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    volumes:
+      - static_data:/app/bublik/bublik/representation/static
+      - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs
+    develop:
+      watch:
+        - path: ./bublik
+          action: sync
+          target: /app/bublik
+          ignore:
+            - .venv
+            - bublik-ui
+
+        - path: ./bublik/requirements.txt
+          action: rebuild
+
   django:
     container_name: ${COMPOSE_PROJECT_NAME}-django
     build:
@@ -258,6 +339,8 @@ services:
       - BUBLIK_DOCKER_DJANGO_HOST_PROXY=${BUBLIK_DOCKER_DJANGO_HOST_PROXY}
       - BUBLIK_DOCKER_DOCS_HOST=${BUBLIK_DOCKER_DOCS_HOST}
       - BUBLIK_DOCKER_DOCS_PORT=${BUBLIK_DOCKER_DOCS_PORT}
+      - BUBLIK_DOCKER_MCP_HOST=${BUBLIK_DOCKER_MCP_HOST}
+      - BUBLIK_DOCKER_MCP_PORT=${BUBLIK_DOCKER_MCP_PORT}
     depends_on:
       - django
       - flower
