@@ -1,13 +1,7 @@
 services:
   bublik-mcp:
     container_name: ${COMPOSE_PROJECT_NAME}-bublik-mcp
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runner
-      args:
-        - URL_PREFIX=${URL_PREFIX}
-        - DOCS_URL=${DOCS_URL}
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-ts-factory}/${RUNNER_IMAGE_NAME:-bublik-runner}:${IMAGE_TAG:-latest}
     command: python manage.py run_mcp_server --host ${BUBLIK_DOCKER_MCP_HOST} --port ${BUBLIK_DOCKER_MCP_PORT}
     network_mode: host
     environment:
