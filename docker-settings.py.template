@@ -211,11 +211,11 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
     },
     'run': {
-        'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}',
         'OPTIONS': {
             'DB': 0,
-            'COMPRESSOR_CLASS': 'redis_cache.compressors.BZip2Compressor',
+            'COMPRESSOR_CLASS': 'django_redis.compressors.bzip2.BZip2Compressor',
             'COMPRESSOR_CLASS_KWARGS': {
                 # 1 - 9; 1 - fastest, biggest; 9 - slowest, smallest
                 'compresslevel': 9,
@@ -223,8 +223,8 @@ CACHES = {
         },
     },
     'project': {
-        'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}',
         'TIMEOUT': 86400,
     },
 }
