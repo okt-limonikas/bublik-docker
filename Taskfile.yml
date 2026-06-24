@@ -2,6 +2,7 @@ version: "3"
 
 dotenv:
   - .env
+  - .env.example
 
 vars:
   API_URL:
@@ -12,10 +13,18 @@ vars:
       fqdn="${fqdn%/}"
       prefix="${prefix#/}"
       prefix="${prefix%/}"
-      if [ -n "$prefix" ]; then
-        echo "$fqdn:$port/$prefix"
+      if [ "$port" = "80" ] || [ "$port" = "443" ]; then
+        if [ -n "$prefix" ]; then
+          echo "$fqdn/$prefix"
+        else
+          echo "$fqdn"
+        fi
       else
-        echo "$fqdn:$port"
+        if [ -n "$prefix" ]; then
+          echo "$fqdn:$port/$prefix"
+        else
+          echo "$fqdn:$port"
+        fi
       fi
   BACKUP_DIR:
     sh: echo "${CLI_ARGS:-backups}"
@@ -40,6 +49,48 @@ vars:
           echo "$fqdn:$port/logs/"
         fi
       fi
+  E2E_MANIFEST: .e2e/e2e-manifest.json
+  E2E_PUBLISH_DIR: '{{.BUBLIK_E2E_PUBLISH_DIR | default (printf "%s/logs/logs/e2e" .BUBLIK_DOCKER_DATA_DIR)}}'
+  # Shape (39 runs total, --runs asserts the derived count):
+  #   * 2026-04-24 is the latest date (what the dashboard shows): every
+  #     conclusion — ok, nok-warning, nok-error, warning, error, compromised,
+  #     running, busy, stopped, interrupted — plus dpdk ok/nok-error/warning
+  #     runs that exercise the large-import path and abnormal (KILLED) leaves.
+  #   * 2026-04-23 is a second populated day right before it, so the dashboard's
+  #     previous day also looks full (same spread, one dpdk ok run).
+  #   * 2026-04-20..2026-04-22 add a light history spread (basic + net-drv,
+  #     plus a couple of status-only runs).
+  #
+  # Result mixes make the matrix representative instead of all-passed: most
+  # results stay expected; warning/error and NOK runs carry the unexpected ones,
+  # and the *-abn mixes add a KILLED leaf on dpdk only.
+  #   * healthy   — ok runs: a few expected fail/skip, no unexpected.
+  #   * warn      — warning/nok-warning: ~34% unexpected, plus expected variety.
+  #   * warn-abn  — warn + 1 abnormal (dpdk only).
+  #   * err       — error/nok-error on net-drv: ~80% unexpected.
+  #   * err-abn   — err + 1 abnormal (large fixtures only).
+  #   * err-basic — error/nok-error sized for the 9-leaf basic fixture.
+  # (basic has too few leaves for the heavy err mix, so it uses err-basic; the
+  # status-only conclusions — compromised/running/busy/stopped/interrupted —
+  # keep the all-passed default since they model run state, not results.)
+  #
+  # Runs marked +ui get importVia=ui in the manifest: the CLI leaves them for
+  # the Playwright import setup, which imports them through the UI import form
+  # and thereby keeps that form under test. Everything else is imported by the
+  # CLI (task e2e:seed).
+  E2E_PLAN: >-
+    --runs 39
+    --mix "healthy:expectedFailed=6%,expectedSkipped=3%"
+    --mix "warn:expectedFailed=8%,expectedSkipped=4%,unexpectedFailed=24%,unexpectedSkipped=7%,unexpectedPassed=3%"
+    --mix "warn-abn:expectedFailed=8%,expectedSkipped=4%,unexpectedFailed=24%,unexpectedSkipped=7%,unexpectedPassed=3%,expectedKilled=1"
+    --mix "err:expectedFailed=5%,unexpectedFailed=68%,unexpectedSkipped=8%,unexpectedPassed=4%"
+    --mix "err-abn:expectedFailed=4%,unexpectedFailed=68%,unexpectedSkipped=8%,unexpectedPassed=4%,expectedKilled=1"
+    --mix "err-basic:expectedSkipped=11%,unexpectedFailed=70%,unexpectedSkipped=11%"
+    --day "2026-04-20:basic.ok@healthy=1,net-drv-ts.ok@healthy=1"
+    --day "2026-04-21:basic.nok-error@err-basic=1,net-drv-ts.warning@warn=1"
+    --day "2026-04-22:basic.ok@healthy+ui=1,basic.compromised=1"
+    --day "2026-04-23:basic.ok@healthy=3,net-drv-ts.ok@healthy=1,net-drv-ts.ok@healthy+ui=1,dpdk-ethdev-ts.ok@healthy=1,basic.nok-warning@warn=1,net-drv-ts.nok-warning@warn=1,basic.nok-error@err-basic=1,net-drv-ts.error@err=1,basic.warning@warn=1,basic.error@err-basic=1,basic.running=1,basic.stopped=1,basic.interrupted=1"
+    --day "2026-04-24:basic.ok@healthy=3,net-drv-ts.ok@healthy=2,dpdk-ethdev-ts.ok@healthy=1,basic.nok-warning@warn=1,dpdk-ethdev-ts.nok-error@err-abn=1,net-drv-ts.nok-error@err-abn=1,basic.nok-error@err-basic=1,dpdk-ethdev-ts.warning@warn-abn=1,basic.warning@warn=1,basic.error@err-basic=1,basic.compromised=1,basic.running=1,basic.busy=1,basic.stopped=1,basic.interrupted=1"
 
 tasks:
   default:
@@ -299,6 +350,132 @@ tasks:
     silent: true
     cmds:
       - ./scripts/publish_logs.sh
+
+  ###########################################
+  #         E2E Testing                     #
+  ###########################################
+  e2e:up:
+    desc: Start services for e2e testing
+    aliases: [e2e:preview-server]
+    cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.db.yml up --build -d
+      - |
+        echo "Waiting for services to be healthy..."
+        for i in $(seq 1 60); do
+          if curl -s -o /dev/null -w '%{http_code}' {{.API_URL}}/api/v2/ 2>/dev/null | grep -q 200; then
+            echo "Services are ready"
+            exit 0
+          fi
+          echo "  attempt $i/60... waiting"
+          sleep 2
+        done
+        echo "ERROR: Services did not become healthy in time"
+        exit 1
+
+  e2e:fixtures:
+    desc: Generate e2e fixture bundles and manifest
+    summary: |
+      Generate deterministic fixture runs and the e2e manifest.
+      Fixtures are auto-discovered by the installed bublik-e2e CLI.
+      Override the default plan: task e2e:fixtures -- --runs 1 --day "2026-04-21:ok=1"
+    cmds:
+      - bublik-e2e generate --url "{{.API_URL}}" --publish-dir "{{.E2E_PUBLISH_DIR}}" --manifest "{{.E2E_MANIFEST}}" {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.E2E_PLAN}}{{end}}
+
+  e2e:seed:
+    desc: Seed bublik with fixture runs via the bublik-e2e CLI (canonical path)
+    summary: |
+      Generate deterministic fixture runs and import them through the API in
+      one shot (bublik-e2e run --setup-projects): creates missing projects and
+      configs, imports every bundle except those planned with +ui (those are
+      left for the Playwright import setup), and writes runIds into the
+      manifest. Re-runs are idempotent: already-imported bundles are skipped.
+      Override the default plan: task e2e:seed -- --runs 1 --day "2026-04-21:ok=1"
+    cmds:
+      - bublik-e2e run --url "{{.API_URL}}" --publish-dir "{{.E2E_PUBLISH_DIR}}" --manifest "{{.E2E_MANIFEST}}" {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.E2E_PLAN}}{{end}} --setup-projects
+
+  e2e:import:manifest:
+    desc: Import an existing manifest via the API (e.g. into a running instance)
+    summary: |
+      Import the already-generated manifest through the API without
+      regenerating fixtures. Idempotent; add flags after --, e.g.
+      task e2e:import:manifest -- --include-ui
+    cmds:
+      - bublik-e2e import --url "{{.API_URL}}" --manifest "{{.E2E_MANIFEST}}" --setup-projects {{.CLI_ARGS}}
+
+  e2e:import:ui:
+    desc: Import the +ui-marked bundles through the Playwright import form
+    summary: |
+      Runs the Playwright auth + import setup projects, which import only the
+      bundles marked importVia=ui through the UI import form (the API bundles
+      must already be seeded — run task e2e:seed first).
+    dir: bublik-ui
+    env:
+      BASE_URL: "{{.API_URL}}/v2/"
+      BUBLIK_E2E_RUN_OVERVIEW: ../{{.E2E_MANIFEST}}
+    cmds:
+      - pnpm exec playwright test --config apps/bublik/playwright.config.ts --project auth --project import {{.CLI_ARGS}}
+
+  e2e:
+    desc: Run Playwright e2e tests against the dockerized stack
+    dir: bublik-ui
+    env:
+      BASE_URL: "{{.API_URL}}/v2/"
+      BUBLIK_E2E_RUN_OVERVIEW: ../{{.E2E_MANIFEST}}
+      CI: "1"
+    cmds:
+      - pnpm exec nx run bublik:e2e
+
+  e2e:ui:
+    desc: Run Playwright e2e tests in UI mode against the dockerized stack
+    dir: bublik-ui
+    env:
+      BASE_URL: "{{.API_URL}}/v2/"
+      BUBLIK_E2E_RUN_OVERVIEW: ../{{.E2E_MANIFEST}}
+    cmds:
+      - pnpm bublik:e2e-ui
+
+  e2e:run:
+    desc: Full e2e pipeline (build → up → seed → playwright)
+    summary: |
+      Run the complete e2e pipeline against a fresh stack. The bublik-e2e CLI
+      generates the fixtures and imports them through the API (task e2e:seed);
+      the Playwright suite's import setup then imports the +ui-marked bundles
+      through the UI import form before the browser projects run.
+    cmds:
+      - task: build
+      - task: e2e:down
+      - task: e2e:up
+      - task: e2e:seed
+      - task: e2e
+
+  e2e:down:
+    desc: Down e2e services
+    cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.db.yml down
+
+  e2e:clean:
+    desc: Remove e2e services, fixtures, and the manifest
+    prompt: This removes the e2e containers, the generated fixtures in {{.E2E_PUBLISH_DIR}}, and {{.E2E_MANIFEST}}. Continue?
+    cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.db.yml down
+      - '{{if .E2E_PUBLISH_DIR}}rm -rf "{{.E2E_PUBLISH_DIR}}"{{end}}'
+      - rm -rf .e2e
+
+  e2e:types:
+    desc: Sync e2e manifest types from the bublik-e2e CLI schema into bublik-ui
+    summary: |
+      Export the manifest JSON Schema from the installed bublik-e2e CLI and
+      regenerate the TypeScript types the Playwright suite consumes.
+      Commit the results in bublik-ui.
+    cmds:
+      - bublik-e2e schema --out bublik-ui/apps/bublik/e2e/support/e2e-manifest.schema.json
+      - cd bublik-ui && pnpm run e2e:codegen
+
+  e2e:types:check:
+    desc: Fail when the bublik-ui manifest types are stale
+    cmds:
+      - bublik-e2e schema | diff -u bublik-ui/apps/bublik/e2e/support/e2e-manifest.schema.json - || (echo "Schema drift — run task e2e:types" && exit 1)
+      - cd bublik-ui && pnpm run e2e:codegen:check
 
   ###########################################
   #         Deps                          #

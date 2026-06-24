@@ -32,6 +32,7 @@ build/
 out/
 
 tmp/
+.e2e/
 
 # Backups
 backups/
