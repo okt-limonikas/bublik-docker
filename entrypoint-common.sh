@@ -27,6 +27,20 @@ setup_permissions() {
     done
 }
 
+setup_runtime_permissions() {
+    local uid=${HOST_UID:-1000}
+    local gid=${HOST_GID:-1000}
+
+    for dir in "$@"; do
+        if [ -d "$dir" ]; then
+            echo "Setting up runtime permissions for $dir"
+            chown -R "${uid}:${gid}" "$dir"
+            chmod -R 2775 "$dir"
+            find "$dir" -type f -exec chmod 664 {} \; 2>/dev/null || true
+        fi
+    done
+}
+
 exec_as_user() {
     if [ "$(id -u)" -eq 0 ]; then
         CONTAINER_UID=${HOST_UID:-1000}

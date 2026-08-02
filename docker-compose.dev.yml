@@ -35,7 +35,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -120,7 +120,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -152,6 +152,7 @@ services:
     volumes:
       - static_data:/app/bublik/bublik/representation/static
       - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs
+      - analytics_data:/app/bublik/analytics
     develop:
       watch:
         - path: ./bublik
@@ -220,7 +221,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -285,7 +286,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -438,6 +439,7 @@ services:
       - URL_PREFIX=${URL_PREFIX}
 
 volumes:
+  analytics_data:
   db_data:
   flower_data:
   static_data:

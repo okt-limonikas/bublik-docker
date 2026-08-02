@@ -29,7 +29,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -108,7 +108,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -138,6 +138,7 @@ services:
       - redis
     volumes:
       - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs
+      - analytics_data:/app/bublik/analytics
       - static_data:/app/bublik/bublik/representation/static
     healthcheck:
       test:
@@ -198,7 +199,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -262,7 +263,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-False}
-      - ANALYTICS_DB_PATH=${ANALYTICS_DB_PATH:-/app/bublik/logs/analytics.sqlite3}
+      - ANALYTICS_DB_PATH=/app/bublik/analytics/analytics.sqlite3
       - CELERY_APP=${CELERY_APP}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
@@ -366,6 +367,7 @@ services:
       start_period: 10s
 
 volumes:
+  analytics_data:
   static_data:
   flower_data:
   redis_data:

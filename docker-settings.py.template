@@ -64,7 +64,7 @@ INSTALLED_APPS = [
 ]
 
 ANALYTICS_ENABLED = os.getenv('ANALYTICS_ENABLED', '0').lower() in ('1', 'true', 'yes')
-ANALYTICS_DB_PATH = os.getenv('ANALYTICS_DB_PATH', '/app/bublik/logs/analytics.sqlite3')
+ANALYTICS_DB_PATH = os.getenv('ANALYTICS_DB_PATH', '/app/bublik/analytics/analytics.sqlite3')
 
 if ANALYTICS_ENABLED:
     INSTALLED_APPS.append('bublik.analytics')

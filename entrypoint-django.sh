@@ -5,8 +5,10 @@ source /app/bublik/entrypoint-common.sh
 setup_umask
 
 echo "Setting up required directories..."
+ANALYTICS_DB_DIR="$(dirname "${ANALYTICS_DB_PATH:-/app/bublik/analytics/analytics.sqlite3}")"
 ensure_directory "${BUBLIK_LOGDIR}"
 ensure_directory "/app/bublik/logs"
+ensure_directory "${ANALYTICS_DB_DIR}"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/django-logs"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming"
@@ -45,5 +47,7 @@ if not User.objects.filter(email=SUPERUSER_EMAIL).exists():
 else:
     print(f'Superuser with email {SUPERUSER_EMAIL} already exists.')
 EOF
+
+setup_runtime_permissions "${ANALYTICS_DB_DIR}"
 
 exec_as_user "$@" 
