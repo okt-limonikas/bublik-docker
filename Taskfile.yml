@@ -50,6 +50,7 @@ vars:
         fi
       fi
   E2E_MANIFEST: .e2e/e2e-manifest.json
+  E2E_RUN_LOG_SCHEMA: bublik/bublik/data/schemas/run_log.json
   E2E_PUBLISH_DIR: '{{.BUBLIK_E2E_PUBLISH_DIR | default (printf "%s/logs/logs/e2e" .BUBLIK_DOCKER_DATA_DIR)}}'
   # Shape (39 runs total, --runs asserts the derived count):
   #   * 2026-04-24 is the latest date (what the dashboard shows): every
@@ -379,7 +380,7 @@ tasks:
       Fixtures are auto-discovered by the installed bublik-e2e CLI.
       Override the default plan: task e2e:fixtures -- --runs 1 --day "2026-04-21:ok=1"
     cmds:
-      - bublik-e2e generate --url "{{.API_URL}}" --publish-dir "{{.E2E_PUBLISH_DIR}}" --manifest "{{.E2E_MANIFEST}}" {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.E2E_PLAN}}{{end}}
+      - bublik-e2e generate --url "{{.API_URL}}" --publish-dir "{{.E2E_PUBLISH_DIR}}" --manifest "{{.E2E_MANIFEST}}" --run-log-schema "{{.E2E_RUN_LOG_SCHEMA}}" {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.E2E_PLAN}}{{end}}
 
   e2e:seed:
     desc: Seed bublik with fixture runs via the bublik-e2e CLI (canonical path)
@@ -391,7 +392,7 @@ tasks:
       manifest. Re-runs are idempotent: already-imported bundles are skipped.
       Override the default plan: task e2e:seed -- --runs 1 --day "2026-04-21:ok=1"
     cmds:
-      - bublik-e2e run --url "{{.API_URL}}" --publish-dir "{{.E2E_PUBLISH_DIR}}" --manifest "{{.E2E_MANIFEST}}" {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.E2E_PLAN}}{{end}} --setup-projects
+      - bublik-e2e run --url "{{.API_URL}}" --publish-dir "{{.E2E_PUBLISH_DIR}}" --manifest "{{.E2E_MANIFEST}}" --run-log-schema "{{.E2E_RUN_LOG_SCHEMA}}" {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.E2E_PLAN}}{{end}} --setup-projects
 
   e2e:import:manifest:
     desc: Import an existing manifest via the API (e.g. into a running instance)
@@ -408,6 +409,7 @@ tasks:
       Runs the Playwright auth + import setup projects, which import only the
       bundles marked importVia=ui through the UI import form (the API bundles
       must already be seeded — run task e2e:seed first).
+    deps: [e2e:types:check]
     dir: bublik-ui
     env:
       BASE_URL: "{{.API_URL}}/v2/"
@@ -417,6 +419,7 @@ tasks:
 
   e2e:
     desc: Run Playwright e2e tests against the dockerized stack
+    deps: [e2e:types:check]
     dir: bublik-ui
     env:
       BASE_URL: "{{.API_URL}}/v2/"
@@ -427,6 +430,7 @@ tasks:
 
   e2e:ui:
     desc: Run Playwright e2e tests in UI mode against the dockerized stack
+    deps: [e2e:types:check]
     dir: bublik-ui
     env:
       BASE_URL: "{{.API_URL}}/v2/"
@@ -472,10 +476,11 @@ tasks:
       - cd bublik-ui && pnpm run e2e:codegen
 
   e2e:types:check:
-    desc: Fail when the bublik-ui manifest types are stale
+    desc: Fail when the bublik-ui manifest types are stale or e2e code does not typecheck
     cmds:
       - bublik-e2e schema | diff -u bublik-ui/apps/bublik/e2e/support/e2e-manifest.schema.json - || (echo "Schema drift — run task e2e:types" && exit 1)
       - cd bublik-ui && pnpm run e2e:codegen:check
+      - cd bublik-ui && pnpm run e2e:typecheck
 
   ###########################################
   #         Deps                          #
