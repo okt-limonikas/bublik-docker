@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "runs": 39,
+  "mixes": {
+    "healthy": "expectedFailed=6%,expectedSkipped=3%",
+    "warn": "expectedFailed=8%,expectedSkipped=4%,unexpectedFailed=24%,unexpectedSkipped=7%,unexpectedPassed=3%",
+    "warn-abn": "expectedFailed=8%,expectedSkipped=4%,unexpectedFailed=24%,unexpectedSkipped=7%,unexpectedPassed=3%,expectedKilled=1",
+    "err": "expectedFailed=5%,unexpectedFailed=68%,unexpectedSkipped=8%,unexpectedPassed=4%",
+    "err-abn": "expectedFailed=4%,unexpectedFailed=68%,unexpectedSkipped=8%,unexpectedPassed=4%,expectedKilled=1",
+    "err-basic": "expectedSkipped=11%,unexpectedFailed=70%,unexpectedSkipped=11%"
+  },
+  "days": {
+    "2026-04-19": "",
+    "2026-04-20": "basic.ok@healthy=1,net-drv-ts.ok@healthy=1",
+    "2026-04-21": "basic.nok-error@err-basic=1,net-drv-ts.warning@warn=1",
+    "2026-04-22": "basic.ok@healthy+ui=1,basic.compromised=1",
+    "2026-04-23": "basic.ok@healthy=3,net-drv-ts.ok@healthy=1,net-drv-ts.ok@healthy+ui=1,dpdk-ethdev-ts.ok@healthy=1,basic.nok-warning@warn=1,net-drv-ts.nok-warning@warn=1,basic.nok-error@err-basic=1,net-drv-ts.error@err=1,basic.warning@warn=1,basic.error@err-basic=1,basic.running=1,basic.stopped=1,basic.interrupted=1",
+    "2026-04-24": "basic.ok@healthy=3,net-drv-ts.ok@healthy=2,dpdk-ethdev-ts.ok@healthy=1,basic.nok-warning@warn=1,dpdk-ethdev-ts.nok-error@err-abn=1,net-drv-ts.nok-error@err-abn=1,basic.nok-error@err-basic=1,dpdk-ethdev-ts.warning@warn-abn=1,basic.warning@warn=1,basic.error@err-basic=1,basic.compromised=1,basic.running=1,basic.busy=1,basic.stopped=1,basic.interrupted=1"
+  }
+}
