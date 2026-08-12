@@ -350,11 +350,7 @@ tasks:
         docker compose -f docker-compose.yml -f docker-compose.db.yml build
         started_at=$(date +%s)
         deadline=$((started_at + BUBLIK_E2E_READY_TIMEOUT))
-        if ! docker compose -f docker-compose.yml -f docker-compose.db.yml up --no-build -d --wait --wait-timeout "$BUBLIK_E2E_READY_TIMEOUT"; then
-          docker compose -f docker-compose.yml -f docker-compose.db.yml ps --all
-          docker compose -f docker-compose.yml -f docker-compose.db.yml logs --tail=200
-          exit 1
-        fi
+        docker compose -f docker-compose.yml -f docker-compose.db.yml up --no-build -d
         while :; do
           remaining=$((deadline - $(date +%s)))
           if [ "$remaining" -le 0 ]; then
@@ -368,8 +364,23 @@ tasks:
             request_timeout=5
             if [ "$remaining" -lt "$request_timeout" ]; then request_timeout=$remaining; fi
             if curl --fail --silent --show-error --max-time "$request_timeout" "$BUBLIK_E2E_API_URL/v2/" >/dev/null 2>&1; then
-              echo "E2E API and UI are ready at $BUBLIK_E2E_API_URL"
-              exit 0
+              remaining=$((deadline - $(date +%s)))
+              if [ "$remaining" -le 0 ]; then break; fi
+              request_timeout=5
+              if [ "$remaining" -lt "$request_timeout" ]; then request_timeout=$remaining; fi
+              if curl --fail --silent --show-error --max-time "$request_timeout" "$BUBLIK_E2E_API_URL/logs/" >/dev/null 2>&1; then
+                remaining=$((deadline - $(date +%s)))
+                if [ "$remaining" -le 0 ]; then break; fi
+                celery_timeout=5
+                if [ "$remaining" -lt "$celery_timeout" ]; then celery_timeout=$remaining; fi
+                celery_ping=$(docker compose -f docker-compose.yml -f docker-compose.db.yml exec -T celery celery -A "$CELERY_APP" inspect ping --timeout "$celery_timeout" 2>/dev/null || true)
+                case "$celery_ping" in
+                  *pong*)
+                    echo "E2E API, UI, logs, and Celery are ready at $BUBLIK_E2E_API_URL"
+                    exit 0
+                    ;;
+                esac
+              fi
             fi
           fi
           remaining=$((deadline - $(date +%s)))
@@ -378,7 +389,7 @@ tasks:
           fi
           if [ "$remaining" -gt 1 ]; then sleep 1; fi
         done
-        echo "E2E endpoints did not become ready within $BUBLIK_E2E_READY_TIMEOUT seconds" >&2
+        echo "E2E API, UI, logs, and Celery did not become ready within $BUBLIK_E2E_READY_TIMEOUT seconds" >&2
         docker compose -f docker-compose.yml -f docker-compose.db.yml ps --all
         docker compose -f docker-compose.yml -f docker-compose.db.yml logs --tail=200
         exit 1
