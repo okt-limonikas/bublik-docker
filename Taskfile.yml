@@ -579,10 +579,11 @@ tasks:
       - cd bublik-ui && pnpm run e2e:codegen
 
   e2e:types:check:
-    desc: Fail when the bublik-ui manifest types are stale or e2e code does not typecheck
+    desc: Fail when manifest types are stale, a feature scenario has no test, or e2e code does not typecheck
     cmds:
       - bublik-e2e schema | diff -u bublik-ui/apps/bublik/e2e/support/e2e-manifest.schema.json - || (echo "Schema drift — run task e2e:types" && exit 1)
       - cd bublik-ui && pnpm run e2e:codegen:check
+      - cd bublik-ui && pnpm run e2e:features:check
       - cd bublik-ui && pnpm run e2e:typecheck
 
   ###########################################
