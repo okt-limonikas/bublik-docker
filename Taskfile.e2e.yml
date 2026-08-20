@@ -20,6 +20,10 @@ vars:
   PLAN: '{{.BUBLIK_E2E_PLAN_FILE | default "e2e/plan.yaml"}}'
   DATA_DIR: '{{.BUBLIK_E2E_DATA_DIR | default (printf "%s/e2e" .BUBLIK_DOCKER_DATA_DIR)}}'
   PUBLISH_DIR: '{{.BUBLIK_E2E_PUBLISH_DIR | default (printf "%s/logs/logs/e2e" .DATA_DIR)}}'
+  # Converted Playwright results live beside the fixtures, never inside them:
+  # seeding replaces the whole fixture publish directory and `e2e:reset` deletes
+  # it, while accumulating result runs across resets is the entire point.
+  RESULTS_DIR: '{{.BUBLIK_E2E_RESULTS_DIR | default (printf "%s/logs/logs/e2e-results" .DATA_DIR)}}'
   RUN_LOG_SCHEMA: bublik/bublik/data/schemas/run_log.json
   META_DATA_SCHEMA: bublik/bublik/data/schemas/meta_data.json
   NORMAL_PROJECT: '{{.COMPOSE_PROJECT_NAME | default "bublik"}}'
@@ -51,6 +55,7 @@ tasks:
       BUBLIK_NORMAL_COMPOSE_PROJECT_NAME: "{{.NORMAL_PROJECT}}"
       BUBLIK_E2E_MANIFEST: "{{.MANIFEST}}"
       BUBLIK_E2E_PUBLISH_DIR: "{{.PUBLISH_DIR}}"
+      BUBLIK_E2E_RESULTS_DIR: "{{.RESULTS_DIR}}"
       BUBLIK_E2E_RUN_LOG_SCHEMA: "{{.RUN_LOG_SCHEMA}}"
       BUBLIK_E2E_META_DATA_SCHEMA: "{{.META_DATA_SCHEMA}}"
       BUBLIK_E2E_URL: "{{.API_URL}}"
@@ -186,6 +191,24 @@ tasks:
     deps: [types:check]
     cmds:
       - pnpm exec playwright test --config apps/bublik/playwright.config.ts --project auth --project import {{.CLI_ARGS}}
+
+  report:bundle:
+    summary: |
+      Convert the last Playwright JSON report into a Bublik bundle and publish
+      it, then print the import URL. Requires a completed `task e2e:test`.
+      Import it too with: task e2e:report:bundle -- --import --create-project
+      Arguments after -- go to `bublik-e2e playwright`.
+    env: *e2e-env
+    preconditions:
+      - sh: test -f bublik-ui/dist/.playwright/apps/bublik/results.json
+        msg: "No Playwright report yet — run `task e2e:test` first"
+    cmds:
+      - >
+        bublik-e2e playwright
+        --report bublik-ui/dist/.playwright/apps/bublik/results.json
+        --publish-dir "{{.RESULTS_DIR}}"
+        --source-root bublik-ui
+        {{.CLI_ARGS}}
 
   logs:
     summary: |
