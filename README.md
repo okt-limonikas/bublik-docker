@@ -15,20 +15,20 @@ This documentation covers installation, configuration, usage guidelines and trou
 
 ## E2E workflow
 
-Five commands cover the whole loop:
+Four commands cover the whole loop:
 
 | Command | Does |
 |---------|------|
-| `task e2e:up` | Build the images, start the E2E stack, wait until it answers, and seed the fixture runs if the instance does not already have them. |
+| `task e2e:up` | Build the images, start the E2E stack, and wait until the API, UI, logs and Celery all answer. |
+| `task e2e:seed` | Generate the fixture runs and import them, skipping any the instance already has. |
 | `task e2e:test` | Run the Playwright suite against it. |
-| `task e2e:test:ui` | The same suite in Playwright's interactive UI mode. |
-| `task e2e:down` | Stop the stack, keeping its database and fixtures so the next `up` skips seeding. |
-| `task e2e:reset` | Throw everything away — containers, volumes, generated fixtures, the manifest, and Playwright's reports, traces and cached auth state. |
+| `task e2e:down` | Stop the stack, keeping its database and fixtures so the next `up` starts with the same data. |
 
 A typical session:
 
 ```bash
-task e2e:up      # first run seeds; later runs are a no-op if the data is there
+task e2e:up
+task e2e:seed    # first run seeds; later runs are a no-op if the data is there
 task e2e:test
 task e2e:down
 ```
@@ -36,10 +36,20 @@ task e2e:down
 `task e2e:up` rebuilds the images, so changes in `bublik-ui` reach the suite
 only through it — the served UI is baked into the image.
 
-`task --list-all` shows the helpers behind these: `e2e:seed`, `e2e:fixtures`,
-`e2e:plan`, `e2e:logs`, `e2e:types`, `e2e:import:manifest`, `e2e:import:via-ui`
-and `e2e:ci` (the whole pipeline on fresh volumes, for automation). They stay
-runnable for debugging; `task e2e:reset` is the only one that prompts.
+Arguments after `--` go to Playwright, so `task e2e:test -- --grep @smoke`
+narrows the run and `task e2e:test -- --ui --ui-host=127.0.0.1 --ui-port=0`
+opens the interactive UI mode. `task --list-all` adds two more: `e2e:logs`
+(`task e2e:logs -- -f celery`) and `e2e:types:check`.
+
+To throw everything away rather than just stopping:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.db.yml down --volumes
+python3 scripts/e2e.py clean    # fixtures, manifest, reports, traces, auth state
+```
+
+Both need the E2E environment — `COMPOSE_PROJECT_NAME=bublik-e2e` and
+`BUBLIK_DOCKER_DATA_DIR=./data/e2e` — or they will act on the production stack.
 
 ### The fixture campaign
 
@@ -47,8 +57,8 @@ The default campaign is versioned in `e2e/plan.yaml`. Validate it and see what
 it expands to — without generating anything — with:
 
 ```bash
-task e2e:plan                     # 39 runs, 5 dates with runs, 1 empty, ...
-task e2e:plan -- --by conclusion  # or --by fixture
+bublik-e2e plan --plan e2e/plan.yaml            # 39 runs, 5 dates with runs, 1 empty, ...
+bublik-e2e plan --plan e2e/plan.yaml --by conclusion  # or --by fixture
 ```
 
 Each day lists one run group per line, `[fixture.]conclusion[@mix][+ui]=count`:

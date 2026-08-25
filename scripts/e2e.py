@@ -11,7 +11,8 @@ specific to this repository's layout:
 ``guard-compose-project``  refuse destructive Compose actions when the E2E and
                            production project names collide
 ``seeded``                 exit 0 when the running stack already has the
-                           manifest's runs, so ``task e2e:up`` can skip seeding
+                           manifest's runs, so ``task e2e:seed`` can skip
+                           reseeding
 """
 
 import json
