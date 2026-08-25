@@ -591,6 +591,9 @@ tasks:
   #   task e2e:test   run the Playwright suite
   #   task e2e:down   stop the stack, keeping its data
   #
+  # `task e2e:test:ui` is the same suite in Playwright's interactive runner,
+  # for picking scenarios and watching them in a browser.
+  #
   # `e2e:logs` and `e2e:types:check` have no `desc`, so they stay runnable but
   # only show up under `task --list-all`. Everything else the suite needs is a
   # `bublik-e2e` subcommand — call it directly rather than wrapping it here.
@@ -664,7 +667,7 @@ tasks:
       Run the full suite (typecheck, feature-contract check, then the browser
       projects). Requires a seeded stack — run `task e2e:up && task e2e:seed`.
       Arguments after -- go to Playwright, e.g. task e2e:test -- --grep @smoke
-      Interactive UI mode: task e2e:test -- --ui --ui-host=127.0.0.1 --ui-port=0
+      Interactive UI mode: task e2e:test:ui
     env: *e2e-env
     dir: bublik-ui
     deps: [e2e:types:check]
@@ -676,6 +679,33 @@ tasks:
       # --project for itself, and the checks its target depends on already ran
       # above as e2e:types:check.
       - CI=1 pnpm exec playwright test --config apps/bublik/playwright.config.ts {{.CLI_ARGS}}
+
+  e2e:test:ui:
+    desc: Open the Playwright suite in the interactive UI runner
+    summary: |
+      Run the suite in Playwright's UI mode: it opens a browser tab where you
+      pick scenarios, watch them execute, and step through the trace of a run.
+      Requires a seeded stack — run `task e2e:up && task e2e:seed`.
+      Arguments after -- go to Playwright, e.g. task e2e:test:ui -- --grep @smoke
+      Cut the project list down with: E2E_BROWSERS=chromium task e2e:test:ui
+    env: *e2e-env
+    dir: bublik-ui
+    # Playwright owns the terminal until the window is closed, and reads keys
+    # from it.
+    interactive: true
+    preconditions:
+      - sh: curl --fail --silent --show-error --max-time 5 "{{.API_URL}}/api/v2/"
+        msg: "E2E stack is not reachable at {{.API_URL}} — run `task e2e:up` first"
+    cmds:
+      # Deliberately unlike e2e:test: no CI=1, which would swap the reporters
+      # for the blob one and reject a `test.only` left in a file, and no
+      # e2e:types:check dependency in front of an interactive session. Naming a
+      # ui-host is what makes Playwright open the runner in the real browser
+      # rather than its own bundled window; port 0 keeps two of these from
+      # fighting over a port.
+      - >
+        pnpm exec playwright test --config apps/bublik/playwright.config.ts
+        --ui --ui-host=127.0.0.1 --ui-port=0 {{.CLI_ARGS}}
 
   e2e:down:
     desc: Stop the E2E stack, keeping its database and fixtures
