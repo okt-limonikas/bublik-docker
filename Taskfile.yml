@@ -4,14 +4,6 @@ dotenv:
   - .env
   - .env.example
 
-includes:
-  # E2E lives in its own file: it needs a different Compose project and data
-  # directory, and keeping it separate stops that environment leaking here.
-  e2e:
-    taskfile: ./Taskfile.e2e.yml
-    vars:
-      API_URL: "{{.API_URL}}"
-
 vars:
   API_URL:
     sh: |
@@ -57,6 +49,30 @@ vars:
           echo "$fqdn:$port/logs/"
         fi
       fi
+
+  ###########################################
+  #         E2E                             #
+  ###########################################
+  # Prefixed, because these share a namespace with everything above: COMPOSE
+  # and PROJECT would read as the production stack's, and E2E_COMPOSE_FILES is
+  # doubly confusing unprefixed — it is also an env var scripts/e2e_ready.sh
+  # reads. The env var names these feed are never prefixed; only the Task-side
+  # names are.
+  E2E_MANIFEST: '{{.BUBLIK_E2E_MANIFEST | default ".e2e/e2e-manifest.json"}}'
+  E2E_PLAN: '{{.BUBLIK_E2E_PLAN_FILE | default "e2e/plan.yaml"}}'
+  E2E_DATA_DIR: '{{.BUBLIK_E2E_DATA_DIR | default (printf "%s/e2e" .BUBLIK_DOCKER_DATA_DIR)}}'
+  E2E_PUBLISH_DIR: '{{.BUBLIK_E2E_PUBLISH_DIR | default (printf "%s/logs/logs/e2e" .E2E_DATA_DIR)}}'
+  # Converted Playwright results live beside the fixtures, never inside them:
+  # seeding replaces the whole fixture publish directory, while accumulating
+  # result runs across reseeds is the entire point.
+  E2E_RESULTS_DIR: '{{.BUBLIK_E2E_RESULTS_DIR | default (printf "%s/logs/logs/e2e-results" .E2E_DATA_DIR)}}'
+  E2E_RUN_LOG_SCHEMA: bublik/bublik/data/schemas/run_log.json
+  E2E_META_DATA_SCHEMA: bublik/bublik/data/schemas/meta_data.json
+  E2E_NORMAL_PROJECT: '{{.COMPOSE_PROJECT_NAME | default "bublik"}}'
+  E2E_PROJECT: '{{.BUBLIK_E2E_COMPOSE_PROJECT_NAME | default (printf "%s-e2e" (.COMPOSE_PROJECT_NAME | default "bublik"))}}'
+  E2E_READY_TIMEOUT: '{{.BUBLIK_E2E_READY_TIMEOUT | default "180"}}'
+  E2E_COMPOSE_FILES: -f docker-compose.yml -f docker-compose.db.yml
+  E2E_COMPOSE: docker compose {{.E2E_COMPOSE_FILES}}
 
 tasks:
   default:
@@ -564,3 +580,129 @@ tasks:
       - docker push ${DOCKER_REGISTRY}/${DOCKER_ORG}/${RUNNER_IMAGE_NAME}:${IMAGE_TAG}
       - docker push ${DOCKER_REGISTRY}/${DOCKER_ORG}/${LOG_SERVER_IMAGE_NAME}:${IMAGE_TAG}
       - docker push ${DOCKER_REGISTRY}/${DOCKER_ORG}/${NGINX_IMAGE_NAME}:${IMAGE_TAG}
+
+  ###########################################
+  #         E2E                             #
+  ###########################################
+  # Four commands cover the loop:
+  #
+  #   task e2e:up     start the dedicated E2E stack and wait until it answers
+  #   task e2e:seed   generate the fixture runs and import them
+  #   task e2e:test   run the Playwright suite
+  #   task e2e:down   stop the stack, keeping its data
+  #
+  # `e2e:logs` and `e2e:types:check` have no `desc`, so they stay runnable but
+  # only show up under `task --list-all`. Everything else the suite needs is a
+  # `bublik-e2e` subcommand — call it directly rather than wrapping it here.
+  #
+  # E2E runs as its own Compose project against its own data directory, but the
+  # Compose files still bind the normal host ports — stop the production stack
+  # before starting this one.
+  e2e:up:
+    desc: Start the E2E stack and wait until every service answers
+    summary: |
+      Build the images, start the dedicated E2E stack, then wait until the API,
+      UI, logs and Celery all answer. Seed it with `task e2e:seed`.
+
+      The served UI is baked into the image, so bublik-ui changes reach the
+      suite only through the rebuild this performs.
+    # Anchor for the shared environment. A root-level `env:` would apply to
+    # every task in this file — the production stack would follow E2E into its
+    # Compose project — and task-level env does not propagate through a `task:`
+    # call, so each E2E task has to carry it. Keep this task first: a YAML alias
+    # cannot precede its anchor.
+    env: &e2e-env
+      COMPOSE_PROJECT_NAME: "{{.E2E_PROJECT}}"
+      COMPOSE_FILES: "{{.E2E_COMPOSE_FILES}}"
+      BUBLIK_DOCKER_DATA_DIR: "{{.E2E_DATA_DIR}}"
+      BUBLIK_E2E_COMPOSE_PROJECT_NAME: "{{.E2E_PROJECT}}"
+      BUBLIK_NORMAL_COMPOSE_PROJECT_NAME: "{{.E2E_NORMAL_PROJECT}}"
+      BUBLIK_E2E_MANIFEST: "{{.E2E_MANIFEST}}"
+      BUBLIK_E2E_PUBLISH_DIR: "{{.E2E_PUBLISH_DIR}}"
+      BUBLIK_E2E_RESULTS_DIR: "{{.E2E_RESULTS_DIR}}"
+      BUBLIK_E2E_RUN_LOG_SCHEMA: "{{.E2E_RUN_LOG_SCHEMA}}"
+      BUBLIK_E2E_META_DATA_SCHEMA: "{{.E2E_META_DATA_SCHEMA}}"
+      BUBLIK_E2E_URL: "{{.API_URL}}"
+      BUBLIK_E2E_API_URL: "{{.API_URL}}"
+      BUBLIK_E2E_READY_TIMEOUT: "{{.E2E_READY_TIMEOUT}}"
+      # Consumed by the Playwright suite, which runs with dir: bublik-ui.
+      BASE_URL: "{{.API_URL}}/v2/"
+      BUBLIK_E2E_RUN_OVERVIEW: "../{{.E2E_MANIFEST}}"
+    deps: [docker:setup]
+    cmds:
+      # Image tags do not depend on the Compose project, so the production build
+      # task is the right one to reuse even though it runs without the env above.
+      - task: docker:build-images
+      - "{{.E2E_COMPOSE}} up --no-build -d"
+      - ./scripts/e2e_ready.sh
+      - echo "🚀 E2E stack ready at {{.API_URL}}"
+
+  e2e:seed:
+    desc: Generate the fixture runs and import them through the API
+    summary: |
+      Generate the fixture runs and import them, skipping bundles the instance
+      already has, so this is cheap to re-run. Bundles planned with +ui are left
+      for the Playwright import project.
+      Override the plan: task e2e:seed -- --day "2026-04-21:basic.ok=1"
+    env: *e2e-env
+    vars:
+      # Dedicated var, not CLI_ARGS directly, so a caller can blank it — the
+      # special CLI_ARGS cannot be overridden.
+      ARGS: '{{.ARGS | default .CLI_ARGS}}'
+    # Skip when the instance already has the plan's runs — but never skip an
+    # explicit override, which is asking for something the manifest cannot know.
+    status:
+      - '{{if trim .ARGS}}false{{else}}python3 scripts/e2e.py seeded{{end}}'
+    cmds:
+      - |
+        {{if trim .ARGS}}bublik-e2e run --setup-projects {{.ARGS}}
+        {{else}}bublik-e2e run --plan "{{.E2E_PLAN}}" --setup-projects{{end}}
+
+  e2e:test:
+    desc: Run the Playwright E2E suite against the stack
+    summary: |
+      Run the full suite (typecheck, feature-contract check, then the browser
+      projects). Requires a seeded stack — run `task e2e:up && task e2e:seed`.
+      Arguments after -- go to Playwright, e.g. task e2e:test -- --grep @smoke
+      Interactive UI mode: task e2e:test -- --ui --ui-host=127.0.0.1 --ui-port=0
+    env: *e2e-env
+    dir: bublik-ui
+    deps: [e2e:types:check]
+    preconditions:
+      - sh: curl --fail --silent --show-error --max-time 5 "{{.API_URL}}/api/v2/"
+        msg: "E2E stack is not reachable at {{.API_URL}} — run `task e2e:up` first"
+    cmds:
+      # Playwright directly rather than through nx: nx claims flags like
+      # --project for itself, and the checks its target depends on already ran
+      # above as e2e:types:check.
+      - CI=1 pnpm exec playwright test --config apps/bublik/playwright.config.ts {{.CLI_ARGS}}
+
+  e2e:down:
+    desc: Stop the E2E stack, keeping its database and fixtures
+    summary: |
+      Remove the E2E containers but keep their volumes, so the next
+      `task e2e:up` starts with the same data and `task e2e:seed` is a no-op.
+      Throw the data away too with: {{.E2E_COMPOSE}} down --volumes
+    env: *e2e-env
+    cmds:
+      - "{{.E2E_COMPOSE}} down --remove-orphans"
+
+  e2e:logs:
+    summary: |
+      Show logs from the dedicated E2E Compose project.
+      Follow one service: task e2e:logs -- -f celery
+    env: *e2e-env
+    cmds:
+      - "{{.E2E_COMPOSE}} logs {{.CLI_ARGS}}"
+
+  e2e:types:check:
+    summary: |
+      Fail when the manifest types are stale, a feature scenario has no test,
+      or the e2e code does not typecheck.
+    cmds:
+      # Quoted: the `run:` in the drift message would otherwise read as a
+      # YAML mapping key.
+      - 'bublik-e2e schema | diff -u bublik-ui/apps/bublik/e2e/support/e2e-manifest.schema.json - || (echo "Schema drift — regenerate with: bublik-e2e schema --out bublik-ui/apps/bublik/e2e/support/e2e-manifest.schema.json && (cd bublik-ui && pnpm run e2e:codegen)" && exit 1)'
+      - cd bublik-ui && pnpm run e2e:codegen:check
+      - cd bublik-ui && pnpm run e2e:features:check
+      - cd bublik-ui && pnpm run e2e:typecheck
