@@ -71,6 +71,13 @@ vars:
   E2E_NORMAL_PROJECT: '{{.COMPOSE_PROJECT_NAME | default "bublik"}}'
   E2E_PROJECT: '{{.BUBLIK_E2E_COMPOSE_PROJECT_NAME | default (printf "%s-e2e" (.COMPOSE_PROJECT_NAME | default "bublik"))}}'
   E2E_READY_TIMEOUT: '{{.BUBLIK_E2E_READY_TIMEOUT | default "180"}}'
+  # Off by default: the plan's pinned failures are seeded either way, and the
+  # triage on top of them can equally be done by hand in the UI. Set it to have
+  # the seed create the plan's issues and rules through the API —
+  # `task e2e:seed E2E_CLASSIFY=1`, or BUBLIK_E2E_CLASSIFY=1 in the environment
+  # — or leave it and run `task e2e:classify` against a seeded stack instead.
+  E2E_CLASSIFY: '{{.BUBLIK_E2E_CLASSIFY | default ""}}'
+  E2E_CLASSIFY_FLAG: '{{if trim .E2E_CLASSIFY}}--setup-classification{{end}}'
   E2E_COMPOSE_FILES: -f docker-compose.yml -f docker-compose.db.yml
   E2E_COMPOSE: docker compose {{.E2E_COMPOSE_FILES}}
 
@@ -591,6 +598,11 @@ tasks:
   #   task e2e:test   run the Playwright suite
   #   task e2e:down   stop the stack, keeping its data
   #
+  # `task e2e:classify` is optional and sits between seed and test: it creates
+  # the plan's classification issues and rules against the seeded runs, so the
+  # +ui bundles the suite imports later are stamped by rules that predate them.
+  # Skipped, the same triage can be done by hand in the UI.
+  #
   # `task e2e:test:ui` is the same suite in Playwright's interactive runner,
   # for picking scenarios and watching them in a browser.
   #
@@ -647,6 +659,7 @@ tasks:
       already has, so this is cheap to re-run. Bundles planned with +ui are left
       for the Playwright import project.
       Override the plan: task e2e:seed -- --day "2026-04-21:basic.ok=1"
+      Also apply the plan's classification rules: task e2e:seed E2E_CLASSIFY=1
     env: *e2e-env
     vars:
       # Dedicated var, not CLI_ARGS directly, so a caller can blank it — the
@@ -658,8 +671,30 @@ tasks:
       - '{{if trim .ARGS}}false{{else}}python3 scripts/e2e.py seeded{{end}}'
     cmds:
       - |
-        {{if trim .ARGS}}bublik-e2e run --setup-projects {{.ARGS}}
-        {{else}}bublik-e2e run --plan "{{.E2E_PLAN}}" --setup-projects{{end}}
+        {{if trim .ARGS}}bublik-e2e run --setup-projects {{.E2E_CLASSIFY_FLAG}} {{.ARGS}}
+        {{else}}bublik-e2e run --plan "{{.E2E_PLAN}}" --setup-projects {{.E2E_CLASSIFY_FLAG}}{{end}}
+
+  e2e:classify:
+    desc: Create the plan's classification issues and rules on a seeded stack
+    summary: |
+      Apply the plan's `classification:` section to an already-seeded stack:
+      create its issues, classify one result per rule, and close the issues that
+      ask for it. Idempotent — a rule that already carries an id is left alone,
+      so this is safe to re-run.
+
+      Ordering is the point. The rules are written against runs already in the
+      instance; the bundles planned with +ui are imported afterwards by the
+      Playwright suite, so the stamps they arrive with can only have come from
+      these rules. Run this between `task e2e:seed` and `task e2e:test`.
+
+      Skip it to triage by hand in the UI instead: the plan's pinned failures
+      are seeded either way.
+    env: *e2e-env
+    preconditions:
+      - sh: curl --fail --silent --show-error --max-time 5 "{{.API_URL}}/api/v2/"
+        msg: "E2E stack is not reachable at {{.API_URL}} — run `task e2e:up` first"
+    cmds:
+      - bublik-e2e import --setup-classification
 
   e2e:test:
     desc: Run the Playwright E2E suite against the stack
