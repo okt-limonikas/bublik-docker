@@ -13,7 +13,7 @@ version: 1
 
 # Guard rail: asserted against what `days` expands to, so an edit that adds or
 # drops a run fails loudly instead of quietly changing every test's fixtures.
-runs: 39
+runs: 40
 
 # Result mixes. Percentages are shares of a run's iterations; a bare number is
 # an absolute count.
@@ -61,6 +61,148 @@ mixes:
     unexpectedFailed: 70%
     unexpectedSkipped: 11%
 
+# Classification fixtures.
+#
+# Bublik applies active issue rules on import, so the assertion worth making is
+# that a rule stamps a run that did not exist when the rule was written. Pins
+# give the rules stable, uniquely-identifiable failures to match; the seeded
+# nok-warning run on 2026-04-23 is what the rules are written against, and its
+# +ui twin on 2026-04-24 is imported afterwards by the Playwright suite.
+#
+# Every pin below targets net-drv-ts nok-warning runs, and every pinned test has
+# enough iterations that a parameters rule can be shown to match one and not the
+# others. Creating the issues and rules is opt-in:
+#
+#     bublik-e2e run --plan e2e/plan.yaml --setup-projects --setup-classification
+#
+# Without the flag the pinned failures are still generated, so the same triage
+# can be done by hand in the UI.
+classification:
+  pins:
+    # Eight iterations, all failing with one distinctive verdict. Carries the
+    # test-only and verdict rules, which should match every one of them.
+    - id: rx-mode-timeout
+      fixture: net-drv-ts
+      test: rx_mode
+      status: FAILED
+      verdicts: ["RX mode negotiation timed out"]
+      conclusions: [nok-warning]
+
+    # One iteration of a 16-iteration test, so a parameters rule matching this
+    # leaf must leave the other fifteen untouched.
+    - id: send-receive-csum
+      fixture: net-drv-ts
+      test: send_receive
+      status: FAILED
+      verdicts: ["Checksum mismatch in received frame"]
+      iterations: [0]
+      conclusions: [nok-warning]
+
+    # Backs the issue that gets closed: closing lifts suppression, so these
+    # results start counting as unexpected again.
+    - id: ping-unreachable
+      fixture: net-drv-ts
+      test: ping
+      status: FAILED
+      verdicts: ["Destination unreachable"]
+      conclusions: [nok-warning]
+
+    # Backs the one-off rule, which is created inactive and so must NOT stamp
+    # the later run.
+    - id: tso-segfault
+      fixture: net-drv-ts
+      test: tso
+      status: FAILED
+      verdicts: ["Segmentation offload disabled by driver"]
+      iterations: [0]
+      conclusions: [nok-warning]
+
+    # Deliberately has no rule: the untriaged control. It must stay unclassified
+    # in both runs, and is what the history "untriaged" filter should surface.
+    - id: simple-csum-untriaged
+      fixture: net-drv-ts
+      test: simple_csum
+      status: FAILED
+      verdicts: ["Unrecognised checksum failure"]
+      conclusions: [nok-warning]
+
+  issues:
+    - id: rx-timeout
+      title: "RX mode negotiation times out on this NIC"
+      description: "Known firmware issue; the driver retries and recovers."
+      key: "ref://E2E_BUGS/E2E-101"
+
+    - id: csum-corruption
+      title: "Checksum mismatch on send_receive"
+      key: "ref://E2E_BUGS/E2E-102"
+
+    - id: ping-closed
+      title: "Ping unreachable during driver reload"
+      key: "ref://E2E_BUGS/E2E-103"
+      # Closed once its rule exists: deactivates the rule and lifts suppression,
+      # which is the "classified, but the issue is closed" state.
+      close: true
+
+    - id: tso-oneoff
+      title: "Segmentation offload disabled by driver"
+      key: "ref://E2E_BUGS/E2E-104"
+
+  rules:
+    # --- one issue, three differently-shaped rules over the same pin ---------
+    # Test only: matches every iteration of rx_mode, in every run of the project.
+    - id: rx-by-test
+      issue: rx-timeout
+      pin: rx-mode-timeout
+      category: known-issue      # expected defaults to true -> suppresses
+      match: []
+
+    # Verdict-scoped: matches only results carrying that verdict text. This is
+    # the rule that cannot be tested at all without authored verdicts.
+    - id: rx-by-verdict
+      issue: rx-timeout
+      pin: rx-mode-timeout
+      category: product-defect
+      expected: false            # classified, but still counts as unexpected
+      match: [verdicts]
+
+    # Tag-gated: tags are matched at run level, so this applies only to runs
+    # carrying the fixture's tags.
+    - id: rx-by-tags
+      issue: rx-timeout
+      pin: rx-mode-timeout
+      category: env
+      match: [tags]
+
+    # --- parameters narrow a rule to a single iteration ---------------------
+    - id: csum-by-params-verdict
+      issue: csum-corruption
+      pin: send-receive-csum
+      category: flaky
+      match: [parameters, verdicts]   # the UI's default preset
+
+    # --- disposition "none": marked, without deciding -----------------------
+    - id: csum-marked-only
+      issue: csum-corruption
+      pin: send-receive-csum
+      category: to-investigate
+      expected: null             # marker only; does not suppress
+      match: [parameters]
+
+    # --- a rule whose issue is closed ---------------------------------------
+    - id: ping-by-test
+      issue: ping-closed
+      pin: ping-unreachable
+      category: known-issue
+      match: []
+
+    # --- one-off: stamps this result only, and stays inactive ---------------
+    - id: tso-oneoff-rule
+      issue: tso-oneoff
+      pin: tso-segfault
+      category: known-issue
+      scope: oneoff
+      match: [parameters, verdicts]
+
 days:
   # A planned empty day: the dashboard's "no runs on this date" state.
   2026-04-19: []
@@ -100,6 +242,11 @@ days:
   2026-04-24:
     - basic.ok@healthy=3
     - net-drv-ts.ok@healthy=2
+    # Same fixture and mix as the seeded 2026-04-23 nok-warning run, so the
+    # classification pins land in both. This one is held back for the Playwright
+    # import, which is what proves the rules reach a run that did not exist when
+    # they were written.
+    - net-drv-ts.nok-warning@warn+ui=1
     - dpdk-ethdev-ts.ok@healthy=1
     - basic.nok-warning@warn=1
     - dpdk-ethdev-ts.nok-error@err-abn=1
