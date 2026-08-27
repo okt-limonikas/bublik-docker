@@ -65,143 +65,692 @@ mixes:
 #
 # Bublik applies active issue rules on import, so the assertion worth making is
 # that a rule stamps a run that did not exist when the rule was written. Pins
-# give the rules stable, uniquely-identifiable failures to match; the seeded
-# nok-warning run on 2026-04-23 is what the rules are written against, and its
-# +ui twin on 2026-04-24 is imported afterwards by the Playwright suite.
+# give the rules stable, uniquely-identifiable failures to match, each with its
+# own verdict text so a verdict rule can be shown to discriminate.
 #
-# Every pin below targets net-drv-ts nok-warning runs, and every pinned test has
-# enough iterations that a parameters rule can be shown to match one and not the
-# others. Creating the issues and rules is opt-in:
+# The 17 net-drv-ts nok-warning pins are the cross-run set: they land in the
+# seeded 2026-04-23 run, which the rules are written against, and again in its
+# +ui twin on 2026-04-24, which the Playwright suite imports afterwards. The
+# rest populate the instance across fixtures, conclusions and categories so
+# /admin/issues, the history filters and the run issue views have realistic
+# volume to render.
+#
+# Creating the issues and rules is opt-in:
 #
 #     bublik-e2e run --plan e2e/plan.yaml --setup-projects --setup-classification
 #
 # Without the flag the pinned failures are still generated, so the same triage
 # can be done by hand in the UI.
+#
+# Coverage held here deliberately, and worth keeping if this list is edited:
+#   - every match shape: test only, verdicts, parameters, tags, parameters+verdicts
+#   - every disposition: suppresses (true), counts (false), marker only (null)
+#   - closed issues, whose rules deactivate and whose suppression lifts
+#   - a one-off rule, created inactive, which must not reach a later run
+#   - `simple-csum-untriaged`: pinned, deliberately unruled, the untriaged control
+#   - issues with and without an external bug key
+#   - issue descriptions: markdown bodies, four issues with none at all,
+#     one very long body, and one carrying quotes, angle brackets and
+#     non-ASCII for the renderer to escape
 classification:
   pins:
-    # Eight iterations, all failing with one distinctive verdict. Carries the
-    # test-only and verdict rules, which should match every one of them.
     - id: rx-mode-timeout
       fixture: net-drv-ts
       test: rx_mode
-      status: FAILED
       verdicts: ["RX mode negotiation timed out"]
       conclusions: [nok-warning]
-
-    # One iteration of a 16-iteration test, so a parameters rule matching this
-    # leaf must leave the other fifteen untouched.
     - id: send-receive-csum
       fixture: net-drv-ts
       test: send_receive
-      status: FAILED
       verdicts: ["Checksum mismatch in received frame"]
       iterations: [0]
       conclusions: [nok-warning]
-
-    # Backs the issue that gets closed: closing lifts suppression, so these
-    # results start counting as unexpected again.
     - id: ping-unreachable
       fixture: net-drv-ts
       test: ping
-      status: FAILED
       verdicts: ["Destination unreachable"]
       conclusions: [nok-warning]
-
-    # Backs the one-off rule, which is created inactive and so must NOT stamp
-    # the later run.
     - id: tso-segfault
       fixture: net-drv-ts
       test: tso
-      status: FAILED
       verdicts: ["Segmentation offload disabled by driver"]
       iterations: [0]
       conclusions: [nok-warning]
-
-    # Deliberately has no rule: the untriaged control. It must stay unclassified
-    # in both runs, and is what the history "untriaged" filter should surface.
     - id: simple-csum-untriaged
       fixture: net-drv-ts
       test: simple_csum
-      status: FAILED
       verdicts: ["Unrecognised checksum failure"]
       conclusions: [nok-warning]
+    - id: mtu-tcp-fragment
+      fixture: net-drv-ts
+      test: mtu_tcp
+      verdicts: ["TCP fragment lost above MTU"]
+      iterations: [0, 1, 2]
+      conclusions: [nok-warning]
+    - id: mtu-udp-oversize
+      fixture: net-drv-ts
+      test: mtu_udp
+      verdicts: ["Oversized UDP datagram dropped"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: rx-fcs-mismatch
+      fixture: net-drv-ts
+      test: rx_fcs
+      verdicts: ["FCS mismatch on received frame"]
+      iterations: [0, 1]
+      conclusions: [nok-warning]
+    - id: coalesce-usecs
+      fixture: net-drv-ts
+      test: rx_coalesce_usecs
+      verdicts: ["Coalescing interval not honoured"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: multicast-filter
+      fixture: net-drv-ts
+      test: multicast
+      verdicts: ["Multicast filter admits unexpected group"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: vlan-filter-leak
+      fixture: net-drv-ts
+      test: vlan_filter
+      verdicts: ["VLAN filter leaks tagged traffic"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: statistics-drift
+      fixture: net-drv-ts
+      test: statistics
+      verdicts: ["Interface counters drift under load"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: mac-change-tx
+      fixture: net-drv-ts
+      test: mac_change_tx
+      verdicts: ["TX stalls after MAC address change"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: driver-unload-hang
+      fixture: net-drv-ts
+      test: driver_unload
+      verdicts: ["Driver unload hangs with traffic in flight"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: if-down-up-flap
+      fixture: net-drv-ts
+      test: if_down_up_loop
+      verdicts: ["Link does not come back after flap"]
+      iterations: [0, 1]
+      conclusions: [nok-warning]
+    - id: reset-under-traffic
+      fixture: net-drv-ts
+      test: reset_under_traffic
+      verdicts: ["NIC reset drops in-flight traffic"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: receive-offload-bad
+      fixture: net-drv-ts
+      test: receive_offload
+      verdicts: ["LRO coalesces across flows"]
+      iterations: [0]
+      conclusions: [nok-warning]
+    - id: eth-reset-nic
+      fixture: net-drv-ts
+      test: ethtool_reset_nic
+      verdicts: ["ethtool reset leaves NIC unresponsive"]
+      iterations: [0]
+      conclusions: [error]
+    - id: coalesce-frames
+      fixture: net-drv-ts
+      test: rx_coalesce_frames
+      verdicts: ["Frame coalescing threshold ignored"]
+      iterations: [0]
+      conclusions: [error]
+    - id: tso-nok-error
+      fixture: net-drv-ts
+      test: tso
+      verdicts: ["TSO segmentation produces malformed header"]
+      iterations: [0]
+      conclusions: [nok-error]
+    - id: dpdk-tx-burst
+      fixture: dpdk-ethdev-ts
+      test: tx_burst_simple
+      verdicts: ["TX burst returns fewer packets than queued"]
+      iterations: [0]
+      conclusions: [nok-error]
+    - id: dpdk-rx-ip4
+      fixture: dpdk-ethdev-ts
+      test: rx_one_packet_ip4
+      verdicts: ["IPv4 packet not received on configured queue"]
+      iterations: [0]
+      conclusions: [nok-error]
+    - id: dpdk-vlan-strip
+      fixture: dpdk-ethdev-ts
+      test: vlan_strip_ip4
+      verdicts: ["VLAN tag not stripped on RX"]
+      iterations: [0]
+      conclusions: [nok-error]
+    - id: dpdk-rss-hash
+      fixture: dpdk-ethdev-ts
+      test: update_rss_hash_conf
+      verdicts: ["RSS hash key not applied"]
+      iterations: [0]
+      conclusions: [warning]
+    - id: dpdk-pause-time
+      fixture: dpdk-ethdev-ts
+      test: flow_ctrl_set_pause_time
+      verdicts: ["Pause frame timing outside tolerance"]
+      iterations: [0]
+      conclusions: [warning]
+    - id: dpdk-rxonly
+      fixture: dpdk-ethdev-ts
+      test: testpmd_rxonly
+      verdicts: ["testpmd rxonly drops at line rate"]
+      iterations: [0]
+      conclusions: [warning]
+    # basic has only nine leaves and err-basic claims nearly all of them, so
+    # this pin rides the lighter `warn` mix instead.
+    - id: basic-latency
+      fixture: basic
+      test: latency_randread
+      verdicts: ["Random-read latency exceeds threshold"]
+      iterations: [0]
+      conclusions: [warning]
 
+  # Descriptions are markdown free text, and are sent only when an issue is
+  # *created* — editing one needs a stack reset to take effect. Four issues are
+  # deliberately left without one; see the coverage list above.
   issues:
     - id: rx-timeout
       title: "RX mode negotiation times out on this NIC"
-      description: "Known firmware issue; the driver retries and recovers."
-      key: "ref://E2E_BUGS/E2E-101"
+      key: ref://E2E_BUGS/E2E-101
+      description: |
+        **`rx_mode` never leaves negotiation.** The driver reports the link up,
+        but the mode request is never acknowledged and the test gives up after
+        its 30s timeout.
 
+        - Reproduces on every run since the 6.9 driver bump.
+        - Confined to the X710 bench; the ConnectX-5 bench is unaffected.
+        - Workaround: set the mode with `ethtool -X` before the test starts.
+      rules:
+        - {pin: rx-mode-timeout, category: known-issue, match: []}
+        - {pin: rx-mode-timeout, category: product-defect, expected: false, match: [verdicts]}
+        - {pin: rx-mode-timeout, category: env, match: [tags]}
     - id: csum-corruption
       title: "Checksum mismatch on send_receive"
-      key: "ref://E2E_BUGS/E2E-102"
+      key: ref://E2E_BUGS/E2E-102
+      description: |
+        **Frames arrive with a bad checksum** on the first `send_receive`
+        iteration. The payload itself is intact, so this looks like the offload
+        writing the wrong value rather than corruption on the wire.
 
+        Intermittent — roughly one run in four. Still under investigation:
+        whether it is the driver or the cabling has not been settled, and there
+        is an `env` issue open against the same failure.
+      rules:
+        - {pin: send-receive-csum, category: flaky, match: [parameters, verdicts]}
+        - {pin: send-receive-csum, category: to-investigate, expected: null, match: [parameters]}
     - id: ping-closed
       title: "Ping unreachable during driver reload"
-      key: "ref://E2E_BUGS/E2E-103"
-      # Closed once its rule exists: deactivates the rule and lifts suppression,
-      # which is the "classified, but the issue is closed" state.
+      key: ref://E2E_BUGS/E2E-103
       close: true
+      description: |
+        **ICMP was black-holed while the driver reloaded.** The interface came
+        back with no route installed, so `ping` reported the destination
+        unreachable for the whole reload window.
 
+        Fixed by restoring the routing table after `probe()` completes. Kept
+        here as a closed issue: its rule deactivates and the suppression it used
+        to apply lifts.
+      rules:
+        - {pin: ping-unreachable, category: known-issue, match: []}
     - id: tso-oneoff
       title: "Segmentation offload disabled by driver"
-      key: "ref://E2E_BUGS/E2E-104"
+      key: ref://E2E_BUGS/E2E-104
+      description: |
+        **The driver silently turns TSO off** when the MTU is raised, and never
+        turns it back on. The test sees the offload flag clear and fails the
+        iteration.
 
-  rules:
-    # --- one issue, three differently-shaped rules over the same pin ---------
-    # Test only: matches every iteration of rx_mode, in every run of the project.
-    - id: rx-by-test
-      issue: rx-timeout
-      pin: rx-mode-timeout
-      category: known-issue      # expected defaults to true -> suppresses
-      match: []
+        Classified one-off: this was a single bad build on the bench, so the
+        rule is created inactive and must not reach any later run.
+      rules:
+        - {pin: tso-segfault, category: known-issue, scope: oneoff, match: [parameters, verdicts]}
+    - id: mtu-tcp-frag
+      title: "TCP fragmentation loss above configured MTU"
+      key: ref://E2E_BUGS/E2E-105
+      description: |
+        **Segments larger than the configured MTU are dropped instead of
+        fragmented.** The sender never sees an ICMP "fragmentation needed", so
+        the connection stalls until the retransmit timer fires.
 
-    # Verdict-scoped: matches only results carrying that verdict text. This is
-    # the rule that cannot be tested at all without authored verdicts.
-    - id: rx-by-verdict
-      issue: rx-timeout
-      pin: rx-mode-timeout
-      category: product-defect
-      expected: false            # classified, but still counts as unexpected
-      match: [verdicts]
+        - Affects the first three `mtu_tcp` iterations (1500, 4000, 9000).
+        - Filed against the driver; the path MTU logic never reaches the stack.
+      rules:
+        - {pin: mtu-tcp-fragment, category: product-defect, match: [verdicts]}
+        - {pin: mtu-tcp-fragment, category: known-issue, expected: true, match: [parameters, verdicts]}
+    - id: mtu-udp-drop
+      title: "Oversized UDP datagrams silently dropped"
+      key: ref://E2E_BUGS/E2E-106
+      description: |
+        **Datagrams above the MTU disappear with no error.** `sendto()` returns
+        success, the counters do not move, and nothing arrives at the peer —
+        the drop is invisible to the application.
 
-    # Tag-gated: tags are matched at run level, so this applies only to runs
-    # carrying the fixture's tags.
-    - id: rx-by-tags
-      issue: rx-timeout
-      pin: rx-mode-timeout
-      category: env
-      match: [tags]
+        Expected behaviour is `EMSGSIZE` on the send path. Filed against the
+        driver's TX prepare routine.
+      rules:
+        - {pin: mtu-udp-oversize, category: product-defect, match: [parameters]}
+    - id: fcs-errors
+      title: "FCS errors under sustained receive load"
+      key: ref://E2E_BUGS/E2E-107
+      description: |
+        **FCS errors climb under sustained RX load**, on the first two `rx_fcs`
+        iterations only.
 
-    # --- parameters narrow a rule to a single iteration ---------------------
-    - id: csum-by-params-verdict
-      issue: csum-corruption
-      pin: send-receive-csum
-      category: flaky
-      match: [parameters, verdicts]   # the UI's default preset
+        Traced to the bench rather than the driver: the DAC cable on port 1 is
+        marginal and the error rate follows the room temperature. Classified as
+        `env` so it stops counting against the driver. Replacement cable is on
+        order.
+      rules:
+        - {pin: rx-fcs-mismatch, category: env, match: [verdicts]}
+    - id: coalesce-ignored
+      title: "RX coalescing interval not honoured"
+      key: ref://E2E_BUGS/E2E-108
+      description: |
+        **The test asserts an exact coalescing interval, which no NIC promises.**
+        `rx-usecs` is set to 50 µs and the device rounds it to the nearest
+        supported step (64 µs here), so the readback never matches and the
+        iteration fails.
 
-    # --- disposition "none": marked, without deciding -----------------------
-    - id: csum-marked-only
-      issue: csum-corruption
-      pin: send-receive-csum
-      category: to-investigate
-      expected: null             # marker only; does not suppress
-      match: [parameters]
+        This is a test bug: the assertion should accept the device's granularity
+        (±1 step) rather than demanding the exact value back.
+      rules:
+        - {pin: coalesce-usecs, category: test-bug, match: [parameters]}
+    - id: mcast-overmatch
+      title: "Multicast filter admits unexpected groups"
+      key: ref://E2E_BUGS/E2E-109
+      description: |
+        **The multicast filter passes groups that were never joined.** With a
+        single group programmed, traffic for a neighbouring group is still
+        delivered, so the filter is matching on too few address bits.
 
-    # --- a rule whose issue is closed ---------------------------------------
-    - id: ping-by-test
-      issue: ping-closed
-      pin: ping-unreachable
-      category: known-issue
-      match: []
+        Reproduces with any two groups that share their first 23 bits, which is
+        what the hardware hash actually keys on.
+      rules:
+        - {pin: multicast-filter, category: product-defect, match: [verdicts]}
+    - id: vlan-leak
+      title: "VLAN filter leaks tagged traffic"
+      key: ref://E2E_BUGS/E2E-110
+      close: true
+      description: |
+        **Tagged frames for unconfigured VLANs reached the host.** The filter
+        table was programmed but never committed, so the device stayed in
+        promiscuous VLAN mode.
 
-    # --- one-off: stamps this result only, and stays inactive ---------------
-    - id: tso-oneoff-rule
-      issue: tso-oneoff
-      pin: tso-segfault
-      category: known-issue
-      scope: oneoff
-      match: [parameters, verdicts]
+        Fixed by flushing the filter table after every update. Closed, so its
+        rule is deactivated and the results it used to suppress count again.
+      rules:
+        - {pin: vlan-filter-leak, category: product-defect, match: [verdicts]}
+    - id: stats-drift
+      title: "Interface counters drift under load"
+      key: ref://E2E_BUGS/E2E-111
+      description: |
+        **Interface counters and the traffic generator disagree** by a few
+        thousand packets after a sustained run. The gap is not reproducible: it
+        shows up in about a third of runs and its size varies.
+
+        Most likely a torn read of the 64-bit counters rather than lost traffic,
+        since the peer's totals are always right.
+      rules:
+        - {pin: statistics-drift, category: flaky, match: [parameters]}
+    - id: mac-tx-stall
+      title: "TX stalls after MAC address change"
+      key: ref://E2E_BUGS/E2E-112
+      description: |
+        **Transmit stops after the MAC address is changed** while the interface
+        is up. The queue fills, the TX counters freeze, and only a down/up
+        brings the path back.
+
+        The driver reprograms the address without quiescing the TX rings first,
+        so descriptors queued against the old address are never completed.
+      rules:
+        - {pin: mac-change-tx, category: product-defect, match: [verdicts]}
+    - id: unload-hang
+      title: "Driver unload hangs with traffic in flight"
+      key: ref://E2E_BUGS/E2E-113
+      description: |
+        **`rmmod` never returns if traffic is still in flight.** The module
+        refcount drops to zero, the unload begins, and the process is left
+        unkillable in `D` state. The machine stays up and reachable over the
+        management interface, but the driver can no longer be loaded or
+        unloaded and only a reboot clears it.
+
+        ## Symptom
+
+        The test starts a bidirectional stream, then unloads the driver without
+        bringing the interface down first. `driver_unload` times out after 120s
+        and the harness reports the iteration as failed. `dmesg` shows the
+        remove path entered and nothing after it:
+
+            [ 412.882] net_drv: removing device 0000:3b:00.0
+            [ 442.113] INFO: task rmmod:5821 blocked for more than 30 seconds.
+            [ 442.113]       Not tainted 6.9.0-bench #1
+            [ 442.114] Call Trace:
+            [ 442.114]  napi_disable+0x8c/0xd0
+            [ 442.114]  net_drv_remove+0x114/0x2a0 [net_drv]
+            [ 442.115]  pci_device_remove+0x3e/0xb0
+
+        ## What is going on
+
+        `napi_disable()` spins waiting for the `NAPI_STATE_SCHED` bit to clear,
+        but the poll routine has already taken the reset path and will not
+        reschedule itself, so the bit is never cleared. Whoever gets there
+        first wins, which is why this needs traffic in flight to reproduce.
+
+        ## Reproducing
+
+        - Needs traffic in both directions; an idle unload always succeeds.
+        - Roughly 3 runs in 5 on the X710 bench; about 1 in 10 on ConnectX-5,
+          which has a shorter poll loop.
+        - Bisects to the commit that moved the reset path off the RTNL lock.
+          The commit before it is clean over 50 unload cycles.
+
+        ## Workaround and impact
+
+        Bring the interface down before unloading — `ip link set dev X down`
+        completes the in-flight descriptors and the unload then returns
+        immediately. That is what the surrounding tests do, which is why only
+        `driver_unload` trips over this.
+
+        Blocks any automated driver upgrade that does not stop traffic first,
+        so it should be fixed before the next release rather than documented.
+      rules:
+        - {pin: driver-unload-hang, category: product-defect, match: []}
+    - id: link-flap
+      title: "Link does not recover after down/up flap"
+      key: ref://E2E_BUGS/E2E-114
+      description: |
+        **The link sometimes stays down after a fast down/up cycle.** Autoneg
+        restarts, the peer sees the link come up, but the local carrier stays
+        clear until the interface is cycled a second time.
+
+        Hits roughly one flap in six, and only when the two transitions are
+        less than a second apart. A separate `env` rule covers the runs where
+        the switch port is the one at fault.
+      rules:
+        - {pin: if-down-up-flap, category: flaky, match: [verdicts]}
+        - {pin: if-down-up-flap, category: env, expected: true, match: [parameters, verdicts]}
+    - id: reset-traffic-loss
+      title: "NIC reset drops in-flight traffic"
+      key: ref://E2E_BUGS/E2E-115
+      description: |
+        **A reset under load loses whatever is already queued.** Descriptors
+        posted before the reset are neither completed nor returned, so the
+        sender counts them as sent and the peer never sees them.
+
+        Known and accepted upstream: the hardware has no way to drain the rings
+        across a reset. Tracked so the failures stay visible without counting.
+      rules:
+        - {pin: reset-under-traffic, category: known-issue, match: [verdicts]}
+    - id: lro-cross-flow
+      title: "LRO coalesces across distinct flows"
+      key: ref://E2E_BUGS/E2E-116
+      description: |
+        **Large receive offload merges segments from different flows** into one
+        oversized frame. The test sees payload from one TCP connection appear
+        inside another's, which is a correctness bug rather than a performance
+        one.
+
+        The hardware hash ignores the source port, so two flows to the same
+        host and port collide in the same LRO context.
+      rules:
+        - {pin: receive-offload-bad, category: product-defect, match: [verdicts]}
+    # Deliberately without a description: freshly filed, nothing written down
+    # yet. This is the empty-body fixture.
+    - id: mtu-tcp-triage
+      title: "Unexplained MTU-related failures, needs triage"
+      rules:
+        - {pin: mtu-tcp-fragment, category: to-investigate, expected: null, match: [parameters]}
+    - id: csum-env
+      title: "Checksum failures traced to lab cabling"
+      description: |
+        **The same checksum failures, but blamed on the bench.** Swapping the
+        DAC cable on port 0 makes them disappear, and they follow the cable
+        when it is moved to another host.
+
+        Filed without an external bug key on purpose: there is nothing for the
+        driver team to fix, this just needs the cable replaced.
+      rules:
+        - {pin: send-receive-csum, category: env, match: [verdicts]}
+    - id: rx-mode-testbug
+      title: "rx_mode assertion is too strict"
+      key: ref://E2E_BUGS/E2E-119
+      description: |
+        **The test demands the mode be readable back immediately.** The device
+        applies it asynchronously and reports the old value for a few
+        milliseconds, so the assertion fires before the change lands.
+
+        Fix belongs in the test: poll for the expected mode with a short
+        timeout instead of reading once.
+      rules:
+        - {pin: rx-mode-timeout, category: test-bug, match: [parameters]}
+    # Deliberately without a description, like `mtu-tcp-triage` above.
+    - id: ping-flake
+      title: "Ping loss is intermittent on this bench"
+      rules:
+        - {pin: ping-unreachable, category: flaky, match: [verdicts]}
+    - id: eth-reset-dead
+      title: "ethtool reset leaves the NIC unresponsive"
+      key: ref://E2E_BUGS/E2E-121
+      description: |
+        **`ethtool --reset` bricks the device until the host reboots.** The
+        reset is accepted, the link never comes back, and every later command
+        against the interface returns `EIO`.
+
+        Worse than the failure it is meant to recover from, so the reset path
+        should either work or refuse the request.
+      rules:
+        - {pin: eth-reset-nic, category: product-defect, match: [verdicts]}
+    - id: coalesce-frames-bug
+      title: "Frame coalescing threshold ignored"
+      key: ref://E2E_BUGS/E2E-122
+      description: |
+        **`rx-frames` has no effect on this device.** Whatever threshold is
+        programmed, interrupts arrive at the same rate as with coalescing off,
+        so the setting is silently accepted and discarded.
+
+        `rx-usecs` on the same device works, which is what makes this look like
+        a missing register write rather than an unsupported feature.
+      rules:
+        - {pin: coalesce-frames, category: product-defect, match: [parameters]}
+    - id: eth-reset-closed
+      title: "ethtool reset regression, fixed upstream"
+      key: ref://E2E_BUGS/E2E-123
+      close: true
+      description: |
+        **A regression in the reset path, fixed upstream.** The reset skipped
+        the firmware handshake and left the device half-initialised.
+
+        The fix landed in 6.9.4; this instance's bench has it. Closed, so the
+        results it covered are counted again.
+      rules:
+        - {pin: eth-reset-nic, category: known-issue, match: [parameters]}
+    - id: tso-malformed
+      title: "TSO produces a malformed header"
+      key: ref://E2E_BUGS/E2E-124
+      description: |
+        **Segments come out with a wrong IP total length.** The first segment
+        of each TSO burst carries the length of the whole unsegmented buffer,
+        so the peer's stack discards it.
+
+        Only the first iteration is affected, which points at the header
+        template being built once and not refreshed per segment.
+      rules:
+        - {pin: tso-nok-error, category: product-defect, match: [verdicts]}
+        - {pin: tso-nok-error, category: known-issue, expected: true, match: []}
+    # Deliberately without a description, like `mtu-tcp-triage` above.
+    - id: tso-nok-triage
+      title: "TSO failures pending investigation"
+      rules:
+        - {pin: tso-nok-error, category: to-investigate, match: [parameters]}
+    - id: dpdk-tx-short
+      title: "TX burst returns fewer packets than queued"
+      key: ref://E2E_BUGS/E2E-126
+      description: |
+        **`rte_eth_tx_burst()` returns a short count with free descriptors.**
+        The application queues 32 mbufs and gets back 28, while
+        `rte_eth_tx_descriptor_status()` still reports "done" for the whole
+        ring — so the PMD is refusing work it has room for.
+
+        - Declared in `<rte_ethdev.h>`; the contract says a short return means
+          "ring full", which is not the case here.
+        - Threshold interaction: `tx_free_thresh` & `tx_rs_thresh` both at 32
+          → the PMD reserves a descriptor it never accounts for.
+        - Timing is tight: the gap only opens when bursts land < 5 µs apart,
+          within ±1 µs of the ring's refill window.
+        - Tracked externally as `ref://E2E_BUGS/E2E-126`; see the "short burst"
+          thread for the vendor's reply.
+      rules:
+        - {pin: dpdk-tx-burst, category: product-defect, match: [verdicts]}
+        - {pin: dpdk-tx-burst, category: flaky, match: [parameters, verdicts]}
+    - id: dpdk-rx-queue
+      title: "IPv4 packet not received on the configured queue"
+      key: ref://E2E_BUGS/E2E-127
+      description: |
+        **Packets land on queue 0 instead of the configured queue.** The flow
+        rule is created and validated without error, but the steering is never
+        programmed into the device, so everything falls through to the default.
+
+        Reproduces with any queue index above 0 on this PMD.
+      rules:
+        - {pin: dpdk-rx-ip4, category: product-defect, match: [verdicts]}
+    - id: dpdk-vlan
+      title: "VLAN tag not stripped on receive"
+      key: ref://E2E_BUGS/E2E-128
+      description: |
+        **The VLAN tag stays in the frame** even with stripping enabled. The
+        mbuf's `vlan_tci` is populated correctly, so the PMD knows the tag is
+        there — it simply does not remove it from the payload.
+
+        Any consumer that trusts `PKT_RX_VLAN_STRIPPED` then reads the wrong
+        ethertype.
+      rules:
+        - {pin: dpdk-vlan-strip, category: product-defect, match: [verdicts]}
+    - id: dpdk-vlan-closed
+      title: "VLAN strip regression, resolved"
+      key: ref://E2E_BUGS/E2E-129
+      close: true
+      description: |
+        **A regression that disabled VLAN stripping entirely**, introduced when
+        the offload flags were renamed and one call site was missed.
+
+        Resolved in the PMD; kept as a closed issue so the earlier results stay
+        explained without suppressing anything.
+      rules:
+        - {pin: dpdk-vlan-strip, category: known-issue, match: [parameters]}
+    - id: dpdk-rss
+      title: "RSS hash key not applied to the device"
+      key: ref://E2E_BUGS/E2E-130
+      description: |
+        **The RSS key is accepted and ignored.** Writing a custom key succeeds
+        and reading it back returns what was written, but the distribution
+        across queues does not change — the device is still hashing with its
+        default key.
+
+        The readback comes from a driver-side cache, which is why the test only
+        catches this by looking at the per-queue counters.
+      rules:
+        - {pin: dpdk-rss-hash, category: product-defect, match: [verdicts]}
+    - id: dpdk-pause
+      title: "Pause frame timing outside tolerance"
+      key: ref://E2E_BUGS/E2E-131
+      description: |
+        **Pause frames arrive outside the window the test allows.** The timing
+        is consistent, just shifted — and it shifts back when the device is
+        moved to the other switch port.
+
+        Classified `env`: the switch on this bench adds its own delay before
+        forwarding pause frames, so this says nothing about the PMD.
+      rules:
+        - {pin: dpdk-pause-time, category: env, match: [verdicts]}
+    - id: dpdk-rxonly-drop
+      title: "testpmd rxonly drops frames at line rate"
+      key: ref://E2E_BUGS/E2E-132
+      description: |
+        **`testpmd` in rxonly mode drops a fraction of a percent at line rate.**
+        The drops show up in the device's missed-packet counter, not in
+        testpmd's own, so the ring is being overrun before software sees it.
+
+        Known and accepted at this ring size; the run is kept visible rather
+        than counted.
+      rules:
+        - {pin: dpdk-rxonly, category: known-issue, match: [verdicts]}
+    # Deliberately without a description, like `mtu-tcp-triage` above.
+    - id: dpdk-rxonly-triage
+      title: "testpmd rxonly drops, cause unknown"
+      rules:
+        - {pin: dpdk-rxonly, category: to-investigate, expected: null, match: [parameters]}
+    - id: dpdk-tx-testbug
+      title: "tx_burst_simple mis-counts on this NIC"
+      key: ref://E2E_BUGS/E2E-134
+      description: |
+        **The test counts sent packets before the ring is drained.** It reads
+        the port statistics immediately after the last burst, so anything still
+        in flight is missing from the total and the comparison fails.
+
+        Fix belongs in the test: wait for the TX descriptors to complete before
+        reading the counters.
+      rules:
+        - {pin: dpdk-tx-burst, category: test-bug, match: [parameters]}
+    - id: dpdk-rx-env
+      title: "RX failures traced to the traffic generator"
+      key: ref://E2E_BUGS/E2E-135
+      close: true
+      description: |
+        **The generator was sending malformed IPv4 headers.** Its checksum
+        offload was left on after an earlier experiment, so every frame it
+        produced was dropped before it reached the queue under test.
+
+        Nothing wrong with the PMD. Closed once the generator's configuration
+        was restored.
+      rules:
+        - {pin: dpdk-rx-ip4, category: env, match: [parameters]}
+    - id: basic-latency-high
+      title: "Random-read latency exceeds the threshold"
+      key: ref://E2E_BUGS/E2E-136
+      description: |
+        **Random-read latency sits above the threshold for the whole run.** The
+        median is within budget; it is the tail that fails — the 99th
+        percentile is roughly double what the test allows.
+
+        Filed against the storage path rather than the test, since the same
+        device meets the threshold on the other bench.
+      rules:
+        - {pin: basic-latency, category: product-defect, match: [verdicts]}
+    - id: basic-latency-known
+      title: "Latency regression tracked upstream"
+      key: ref://E2E_BUGS/E2E-137
+      description: |
+        **The same latency regression, already tracked upstream.** The cause is
+        understood — an extra copy on the read path — and a fix is queued for
+        the next release.
+
+        Suppressed here so the run stays green while the fix works its way
+        through, with the failure still visible on the result.
+      rules:
+        - {pin: basic-latency, category: known-issue, match: [parameters]}
+    - id: dpdk-pause-closed
+      title: "Pause timing regression, closed"
+      key: ref://E2E_BUGS/E2E-138
+      close: true
+      description: |
+        **A pause-timing regression in the PMD**, from a change that rounded
+        the pause quantum to the wrong multiple.
+
+        Fixed and verified on this bench. Closed, so its rule deactivates and
+        the results it covered are counted again.
+      rules:
+        - {pin: dpdk-pause-time, category: known-issue, match: [parameters]}
 
 days:
   # A planned empty day: the dashboard's "no runs on this date" state.
