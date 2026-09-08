@@ -1,0 +1,115 @@
+# The default E2E fixture campaign.
+#
+# Validate and expand it with `task e2e:plan`; the schema is
+# `bublik-e2e schema --kind plan`.
+#
+# Each day item is `[fixture.]conclusion[@mix][+ui]=count`:
+#   fixture     basic | net-drv-ts | dpdk-ethdev-ts (omit to apply to all three)
+#   conclusion  ok, nok-warning, nok-error, warning, error,
+#               running, busy, stopped, interrupted, compromised
+#   @mix        a mix defined below, shaping the pass/fail breakdown
+#   +ui         import through the UI import form (Playwright) instead of the API
+version: 1
+
+# Guard rail: asserted against what `days` expands to, so an edit that adds or
+# drops a run fails loudly instead of quietly changing every test's fixtures.
+runs: 39
+
+# Result mixes. Percentages are shares of a run's iterations; a bare number is
+# an absolute count.
+mixes:
+  # Mostly-passing run with a few known-bad iterations.
+  healthy:
+    expectedFailed: 6%
+    expectedSkipped: 3%
+
+  # Enough unexpected results to land a run in the "warning" band.
+  warn:
+    expectedFailed: 8%
+    expectedSkipped: 4%
+    unexpectedFailed: 24%
+    unexpectedSkipped: 7%
+    unexpectedPassed: 3%
+
+  # As `warn`, plus one abnormal (killed) iteration.
+  warn-abn:
+    expectedFailed: 8%
+    expectedSkipped: 4%
+    unexpectedFailed: 24%
+    unexpectedSkipped: 7%
+    unexpectedPassed: 3%
+    expectedKilled: 1
+
+  # Failure-dominated run.
+  err:
+    expectedFailed: 5%
+    unexpectedFailed: 68%
+    unexpectedSkipped: 8%
+    unexpectedPassed: 4%
+
+  # As `err`, plus one abnormal (killed) iteration.
+  err-abn:
+    expectedFailed: 4%
+    unexpectedFailed: 68%
+    unexpectedSkipped: 8%
+    unexpectedPassed: 4%
+    expectedKilled: 1
+
+  # Failure-dominated run for the basic fixture, which has no expected failures.
+  err-basic:
+    expectedSkipped: 11%
+    unexpectedFailed: 70%
+    unexpectedSkipped: 11%
+
+days:
+  # A planned empty day: the dashboard's "no runs on this date" state.
+  2026-04-19: []
+
+  # Two quiet days, enough for history and run-to-run comparison.
+  2026-04-20:
+    - basic.ok@healthy=1
+    - net-drv-ts.ok@healthy=1
+
+  2026-04-21:
+    - basic.nok-error@err-basic=1
+    - net-drv-ts.warning@warn=1
+
+  # The +ui run is left unimported by `task e2e:up`; the Playwright import
+  # project imports it through the form, keeping that form under test.
+  2026-04-22:
+    - basic.ok@healthy+ui=1
+    - basic.compromised=1
+
+  # Two busy days covering every conclusion, so dashboard, history and run
+  # views all have something of each kind to render.
+  2026-04-23:
+    - basic.ok@healthy=3
+    - net-drv-ts.ok@healthy=1
+    - net-drv-ts.ok@healthy+ui=1
+    - dpdk-ethdev-ts.ok@healthy=1
+    - basic.nok-warning@warn=1
+    - net-drv-ts.nok-warning@warn=1
+    - basic.nok-error@err-basic=1
+    - net-drv-ts.error@err=1
+    - basic.warning@warn=1
+    - basic.error@err-basic=1
+    - basic.running=1
+    - basic.stopped=1
+    - basic.interrupted=1
+
+  2026-04-24:
+    - basic.ok@healthy=3
+    - net-drv-ts.ok@healthy=2
+    - dpdk-ethdev-ts.ok@healthy=1
+    - basic.nok-warning@warn=1
+    - dpdk-ethdev-ts.nok-error@err-abn=1
+    - net-drv-ts.nok-error@err-abn=1
+    - basic.nok-error@err-basic=1
+    - dpdk-ethdev-ts.warning@warn-abn=1
+    - basic.warning@warn=1
+    - basic.error@err-basic=1
+    - basic.compromised=1
+    - basic.running=1
+    - basic.busy=1
+    - basic.stopped=1
+    - basic.interrupted=1

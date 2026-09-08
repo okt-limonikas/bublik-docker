@@ -25,6 +25,7 @@ pnpm-debug.log*
 # Dependencies
 node_modules/
 vendor/
+__pycache__/
 
 # Build artifacts
 dist/
@@ -32,6 +33,7 @@ build/
 out/
 
 tmp/
+.e2e/
 
 # Backups
 backups/
