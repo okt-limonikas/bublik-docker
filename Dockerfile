@@ -1,73 +1,83 @@
-###########################################
-#         Base Python Image              #
-###########################################
-FROM python:3.12-slim-bookworm AS base
+# syntax=docker/dockerfile:1
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PATH="/app/te/build/inst/default/bin:$PATH"
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
-WORKDIR /app
+FROM ghcr.io/astral-sh/uv:0.12.17 AS uv
+
+###########################################
+#   Test Environment tools (builder)      #
+###########################################
+FROM ${PYTHON_IMAGE} AS te-builder
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-  gettext \
-  python3-celery \
-  gosu \
-  util-linux \
-  rsync \
-  flex \
-  bison \
-  ninja-build \
-  gawk \
-  libjansson-dev \
-  libjansson-doc \
-  libjansson4 \
-  libpopt-dev \
-  libpcre3-dev \
-  pixz \
-  libxml-parser-perl \
   build-essential \
-  curl \
-  libkrb5-dev \
-  libffi-dev \
+  bison \
+  file \
+  flex \
+  gawk \
+  libglib2.0-dev \
+  libjansson-dev \
+  libpcre2-dev \
+  libpopt-dev \
+  libssl-dev \
   libxml2-dev \
   libyaml-dev \
-  libssl-dev \
-  libglib2.0-dev \
-  libpango-1.0-0 \
-  libpangocairo-1.0-0 \
-  libgdk-pixbuf-2.0-0 \
-  fonts-dejavu-core \
-  fonts-liberation \
-  git \
-  && rm -rf /var/lib/apt/lists/* \
-  && cpan -T JSON
+  m4 \
+  ninja-build \
+  perl \
+  pkg-config \
+  rsync \
+  && rm -rf /var/lib/apt/lists/*
 
-# Install UV
-ADD https://astral.sh/uv/install.sh /uv-installer.sh
-RUN chmod +x /uv-installer.sh && /uv-installer.sh && rm /uv-installer.sh
-ENV PATH="/root/.local/bin/:$PATH"
-ENV UV_HTTP_TIMEOUT=2400
-
-# Install dependencies using uv pip
-RUN uv pip install --system --no-cache-dir meson==1.6.1 watchfiles==1.0.4 setuptools==81.0.0 Cython pybind11
-
-RUN mkdir bublik
-
-COPY ./bublik/requirements.txt /app/bublik/requirements.txt
-RUN uv pip install --system --no-cache-dir --no-build-isolation -r /app/bublik/requirements.txt
-RUN rm -f /usr/local/bin/ninja && ln -s /usr/bin/ninja /usr/local/bin/ninja
-
-COPY ./entrypoint-common.sh /app/bublik/entrypoint-common.sh
-COPY ./entrypoint-django.sh /app/bublik/entrypoint-django.sh
-COPY ./entrypoint-celery.sh /app/bublik/entrypoint-celery.sh
-COPY ./entrypoint-logserver.sh /app/bublik/entrypoint-logserver.sh
-RUN chmod +x /app/bublik/entrypoint-*.sh
+COPY --from=uv /uv /usr/local/bin/uv
+RUN uv pip install --system --no-cache-dir meson==1.6.1
 
 WORKDIR /app/te
 COPY ./test-environment .
 RUN ./dispatcher.sh -q --conf-builder=builder.conf.tools --no-run
+
+# Keep only what is executed at runtime.
+RUN set -eux; \
+  cd build/inst/default; \
+  rm -rf include lib/pkgconfig lib/*.a share/cm; \
+  find bin lib -type f -exec sh -c \
+    'file -b "$1" | grep -q "^ELF" && strip --strip-unneeded "$1" || true' _ {} \;
+
+###########################################
+#   Python dependencies (builder)         #
+###########################################
+FROM ${PYTHON_IMAGE} AS py-builder
+
+# pykerberos has no wheels and builds against libkrb5.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  build-essential \
+  libffi-dev \
+  libkrb5-dev \
+  libssl-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=uv /uv /usr/local/bin/uv
+
+ENV UV_PYTHON=/usr/local/bin/python3.12 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=0 \
+    UV_HTTP_TIMEOUT=2400
+
+WORKDIR /app/bublik
+COPY ./bublik/requirements.txt ./
+
+# Developer tooling from requirements.txt is not installed into the image.
+RUN grep -v -i -E \
+    '^(autoflake|coverage|fakeredis|importlab|networkx|ninja|pep517|pip-review|pip-tools|pipdeptree|pre-commit|pytest|pytype|ruff|syrupy)(==|\[|$)' \
+    requirements.txt > requirements-runtime.txt
+
+# watchfiles is used by docker-compose.dev.yml.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venv \
+    && uv pip install --python /opt/venv -r requirements-runtime.txt watchfiles==1.0.4
 
 ###########################################
 #         Documentation
@@ -101,10 +111,78 @@ WORKDIR /app
 
 RUN URL="${DOCS_URL}" BASE_URL="${URL_PREFIX}/docs/" pnpm run build
 
+# Raw image copies made by docusaurus-markdown-source-plugin; the site uses assets/.
+RUN rm -rf /app/build/blog/img /app/build/img
+
+###########################################
+#   Shared runtime base                   #
+###########################################
+FROM ${PYTHON_IMAGE} AS runtime-base
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/app/te/build/inst/default/bin:$PATH"
+
+# Libraries the TE tools link against and tools the entrypoints call.
+# Perl serves the legacy log converters (rgt-bublik-json-legacy, xml_log_parser).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  curl \
+  gosu \
+  libglib2.0-0 \
+  libjansson4 \
+  libjson-perl \
+  libpcre2-8-0 \
+  libpopt0 \
+  libstdc++6 \
+  libtimedate-perl \
+  libxml-parser-perl \
+  libxml2 \
+  libyaml-0-2 \
+  perl \
+  pixz \
+  xz-utils \
+  && rm -rf /var/lib/apt/lists/* \
+  # TE scripts use #!/usr/bin/python3.
+  && { [ -e /usr/bin/python3 ] || ln -s /usr/local/bin/python3 /usr/bin/python3; }
+
+WORKDIR /app
+
+COPY --from=te-builder /app/te/build/inst /app/te/build/inst
+
+# Let the TE tools find their own shared libraries.
+RUN echo /app/te/build/inst/default/lib > /etc/ld.so.conf.d/te.conf && ldconfig
+
+COPY ./entrypoint-common.sh \
+     ./entrypoint-django.sh \
+     ./entrypoint-celery.sh \
+     ./entrypoint-logserver.sh \
+     /app/bublik/
+RUN chmod +x /app/bublik/entrypoint-*.sh
+
 ###########################################
 #           Bublik Runner               #
 ###########################################
-FROM base AS runner
+FROM runtime-base AS runner
+
+# libkrb5/libgssapi: pykerberos + gssapi; pango/gdk-pixbuf + fonts: weasyprint.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  fonts-dejavu-core \
+  fonts-liberation \
+  libgdk-pixbuf-2.0-0 \
+  libgssapi-krb5-2 \
+  libkrb5-3 \
+  libpango-1.0-0 \
+  libpangocairo-1.0-0 \
+  && rm -rf /var/lib/apt/lists/*
+
+# GitPython is imported at startup but git itself is not needed.
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    GIT_PYTHON_REFRESH=quiet
+
+COPY --from=py-builder /opt/venv /opt/venv
 
 WORKDIR /app
 
@@ -138,13 +216,15 @@ ENV BUBLIK_REPO_URL=${BUBLIK_REPO_URL} \
 ###########################################
 #           Log Server                    #
 ###########################################
-FROM base AS log-server
+FROM runtime-base AS log-server
 
-RUN apt-get update && apt-get install -y \
+# tshark: rgt-proc-raw-log renders sniffer captures with it.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
     apache2 \
     file \
-    jq \
     inotify-tools \
+    jq \
     tshark \
     && rm -rf /var/lib/apt/lists/*
 
@@ -156,15 +236,10 @@ RUN mkdir -p \
   /home/te-logs/incoming \
   /home/te-logs/bad \
   /home/te-logs/bin \
-  /app/bublik \
   /app/te-templates \
   && chmod -R 775 /home/te-logs/logs \
   && chmod -R 775 /home/te-logs/incoming \
   && chmod -R 775 /home/te-logs/bad
-
-COPY ./entrypoint-common.sh /app/bublik/entrypoint-common.sh
-COPY ./entrypoint-logserver.sh /app/bublik/entrypoint-logserver.sh
-RUN chmod +x /app/bublik/entrypoint-*.sh
 
 COPY ./test-environment/tools/log_server/te-logs-error404.template /app/te-templates/
 COPY ./test-environment/tools/log_server/te-logs-index.template /app/te-templates/

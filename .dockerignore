@@ -48,3 +48,8 @@ docker-compose*
 README.md
 LICENSE
 .vscode
+**/.venv
+**/.opencode
+**/.jj
+**/.pytest_cache
+**/.playwright-mcp
