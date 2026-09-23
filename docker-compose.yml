@@ -148,6 +148,8 @@ services:
       - S3_BUCKET=${S3_BUCKET:-bublik-ai-chat-files}
       - S3_REGION=${S3_REGION:-us-east-1}
       - S3_PRESIGN_EXPIRY=${S3_PRESIGN_EXPIRY:-300}
+      - IMPORT_UPLOAD_MAX_SIZE=${IMPORT_UPLOAD_MAX_SIZE:-2147483648}
+      - LOGS_S3_CACHE_DIR=/app/bublik/logs-s3-cache
       - AI_CHAT_FILE_MAX_SIZE=${AI_CHAT_FILE_MAX_SIZE:-20971520}
     expose:
       - ${BUBLIK_DOCKER_DJANGO_PORT}
@@ -159,6 +161,7 @@ services:
       - ${BUBLIK_DOCKER_DATA_DIR}/django-logs:/app/bublik/logs
       - analytics_data:/app/bublik/analytics
       - ${BUBLIK_DOCKER_DATA_DIR}/ai-chat-files:/app/bublik/ai-chat-files
+      - ${BUBLIK_DOCKER_DATA_DIR}/logs-s3-cache:/app/bublik/logs-s3-cache
       - static_data:/app/bublik/bublik/representation/static
     healthcheck:
       test:
@@ -383,6 +386,7 @@ services:
     restart: unless-stopped
     environment:
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
+      - BUBLIK_UPLOAD_MAX_BODY=${BUBLIK_UPLOAD_MAX_BODY:-2g}
       - URL_PREFIX=${URL_PREFIX}
       - DOLLAR=${DOLLAR}
       - BUBLIK_DOCKER_PROXY_PORT=${BUBLIK_DOCKER_PROXY_PORT}
