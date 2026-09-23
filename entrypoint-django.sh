@@ -7,10 +7,12 @@ setup_umask
 echo "Setting up required directories..."
 ANALYTICS_DB_DIR="$(dirname "${ANALYTICS_DB_PATH:-/app/bublik/analytics/analytics.sqlite3}")"
 AI_CHAT_FILES_DIR="${AI_CHAT_FILE_STORAGE_DIR:-/app/bublik/ai-chat-files}"
+LOGS_S3_CACHE_DIR="${LOGS_S3_CACHE_DIR:-/app/bublik/logs-s3-cache}"
 ensure_directory "${BUBLIK_LOGDIR}"
 ensure_directory "/app/bublik/logs"
 ensure_directory "${ANALYTICS_DB_DIR}"
 ensure_directory "${AI_CHAT_FILES_DIR}"
+ensure_directory "${LOGS_S3_CACHE_DIR}"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/django-logs"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/logs"
 ensure_directory "${BUBLIK_DOCKER_DATA_DIR}/te-logs/incoming"
@@ -51,5 +53,8 @@ EOF
 
 setup_runtime_permissions "${ANALYTICS_DB_DIR}"
 setup_private_directory "${AI_CHAT_FILES_DIR}"
+# The S3 log cache is a bind mount too, so it arrives root-owned; only django
+# writes to it.
+setup_private_directory "${LOGS_S3_CACHE_DIR}"
 
 exec_as_user "$@" 
