@@ -56,7 +56,8 @@ server {
         proxy_redirect off;
     }
 
-    # TE log tarball uploads. The body limit matches IMPORT_UPLOAD_MAX_SIZE, and
+    # Log tarball uploads (TE ones, or bundles holding bublik.json, such as a
+    # converted Playwright report). The body limit matches IMPORT_UPLOAD_MAX_SIZE, and
     # the body streams on to Django instead of being buffered here first.
     location = ${URL_PREFIX}/api/v2/importruns/upload/ {
         proxy_pass http://django;
