@@ -56,3 +56,8 @@ FROM nginx:1.27-alpine
 COPY --from=frontend-builder /app/dist/apps/bublik /app/bublik-ui
 
 RUN rm /etc/nginx/conf.d/default.conf
+
+# The upload endpoint's body limit, which the templates read. The compose files
+# set it from .env; a deployment that does not (a Helm chart made from an older
+# compose file, say) still gets a valid config instead of nginx refusing to start.
+ENV BUBLIK_UPLOAD_MAX_BODY=2g
