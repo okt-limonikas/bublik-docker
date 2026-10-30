@@ -326,11 +326,12 @@ tasks:
       - ./scripts/import_logs.sh {{.FILE}}
 
   logs:upload:
-    desc: Upload a TE log tarball to Bublik's S3 upload base and import it
+    desc: Upload a TE log tarball to Bublik's upload base and import it
     aliases: [upload]
     summary: |
       Upload a TE log tarball (te_logs.tar) through POST /api/v2/importruns/upload/.
-      The project needs a LOGS_BASES entry with an S3 storage and "upload": true.
+      The project needs a LOGS_BASES entry with a storage block and "upload": true
+      (see "Where uploaded logs are stored" in .env.example).
       Usage: BUBLIK_TOKEN=bpat_... task logs:upload -- ./te_logs.tar [project-id]
       BUBLIK_URL overrides the Bublik base URL (default: http://localhost$URL_PREFIX).
     silent: true
