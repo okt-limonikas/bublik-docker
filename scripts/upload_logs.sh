@@ -1,6 +1,6 @@
 #!/bin/bash
 # Upload a TE log tarball (te_logs.tar from Test Environment's publish_logs)
-# to Bublik, which stores it under the project's S3 upload base and imports it.
+# to Bublik, which stores it under the project's upload base and imports it.
 #
 # Usage: upload_logs.sh <file.tar> [project-id]
 # Environment:
