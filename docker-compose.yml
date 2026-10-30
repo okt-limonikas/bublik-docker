@@ -163,6 +163,9 @@ services:
       - analytics_data:/app/bublik/analytics
       - ${BUBLIK_DOCKER_DATA_DIR}/ai-chat-files:/app/bublik/ai-chat-files
       - ${BUBLIK_DOCKER_DATA_DIR}/logs-s3-cache:/app/bublik/logs-s3-cache
+      # The log server's storage, for uploads to a logs base with
+      # {"type": "fs", "root": "/home/te-logs/logs", "upload": true}.
+      - ${BUBLIK_DOCKER_DATA_DIR}/logs/logs:/home/te-logs/logs:rw
       - static_data:/app/bublik/bublik/representation/static
     healthcheck:
       test:
