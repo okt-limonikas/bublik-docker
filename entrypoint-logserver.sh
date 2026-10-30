@@ -78,6 +78,20 @@ process_templates() {
     chmod +x /home/te-logs/bin/publish-incoming-logs
     chmod +x /home/te-logs/bin/publish-logs-unpack.sh
 
+    # publish-incoming-logs is run through "docker exec", that is as root.
+    # Directories root makes are root-owned and 750 until the permission
+    # watcher reaches them, and until then nothing else can write into them:
+    # neither Apache generating pages nor the django container unpacking an
+    # upload. Drop to the storage owner first; the www-data group keeps the
+    # tar removable from incoming/, which is group-writable.
+    cat > /tmp/publish-as-owner <<'EOF'
+if [ "$(id -u)" -eq 0 ]; then
+    exec gosu "${HOST_UID:-1000}:www-data" "$0" "$@"
+fi
+EOF
+    sed -i '1r /tmp/publish-as-owner' /home/te-logs/bin/publish-incoming-logs
+    rm -f /tmp/publish-as-owner
+
     sed -i \
         -e 's|/logs/\* )|${URL_PREFIX}/logs/\* )|' \
         -e 's|root_dir_uri="/logs"|root_dir_uri="${URL_PREFIX}/logs"|' \
@@ -122,7 +136,16 @@ ensure_directory "/home/te-logs/bad"
 ensure_directory "/home/te-logs/cgi-bin"
 ensure_directory "/home/te-logs/bin"
 
-setup_permissions "/home/te-logs/logs" "/home/te-logs/incoming" "/home/te-logs/bad" "/home/te-logs/cgi-bin" "/home/te-logs/bin"
+setup_permissions "/home/te-logs/incoming" "/home/te-logs/bad" "/home/te-logs/cgi-bin" "/home/te-logs/bin"
+# Apache runs as HOST_UID (setup_service_user below) and generates log pages into
+# the run directories; the django container, also HOST_UID, unpacks uploaded
+# tarballs into them. So the storage is owned by HOST_UID, not www-data, while
+# the group stays www-data: hosts publishing over scp as a www-data member, and
+# the setgid directories, keep working as before.
+echo "Setting up permissions for /home/te-logs/logs"
+chown -R "${HOST_UID:-1000}:www-data" /home/te-logs/logs
+chmod -R 2775 /home/te-logs/logs
+find /home/te-logs/logs -type f -exec chmod 664 {} \; 2>/dev/null || true
 
 process_templates
 
