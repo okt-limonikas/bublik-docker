@@ -82,10 +82,17 @@ server {
         proxy_set_header Connection "upgrade";
     }
 
-    location ~* ^$URL_PREFIX/v2/(.+\.(?:js|css|map|json|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot))$ {
-        alias /app/bublik-ui/$1;
-        expires 1y;
+    # Files under assets/ carry a content hash in their names, so a name never
+    # changes its content. A file that is gone after an update answers 404.
+    location $URL_PREFIX/v2/assets/ {
+        alias /app/bublik-ui/assets/;
         add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # Fonts and icons next to index.html keep their names between builds
+    location ~* ^$URL_PREFIX/v2/([^/]+\.(?:woff2?|ttf|ico))$ {
+        alias /app/bublik-ui/$1;
+        add_header Cache-Control "public, max-age=86400";
     }
 
     location ${URL_PREFIX}/mcp {
@@ -103,6 +110,7 @@ server {
         proxy_read_timeout 86400;
     }
 
+    # index.html, version.json and the like name the current build: revalidate
     location $URL_PREFIX/v2/ {
         alias /app/bublik-ui/;
         index index.html;
